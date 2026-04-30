@@ -560,6 +560,7 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
     <button class="i-tab" onclick="switchIntel('ledger')">Ledger</button>
     <button class="i-tab" onclick="switchIntel('retcorr')">Return Corr</button>
     <button class="i-tab" onclick="switchIntel('slDash')" style="background:rgba(217,119,6,.15);color:var(--amber)">🧠 Learning Dashboard</button>
+    <button class="i-tab" onclick="switchIntel('contra')" style="background:rgba(220,38,38,.08);color:var(--bear)">⚡ Contra Intelligence</button>
   </div>
 
   <!-- M6 -->
@@ -737,6 +738,16 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
     <div id="slDashContent" style="padding:4px 0"></div>
   </div>
 
+  <!-- CONTRA INTELLIGENCE -->
+  <div class="i-panel card" id="intel-contra" style="border-radius:0 0 var(--r-lg) var(--r-lg)">
+    <div class="ct" style="background:rgba(220,38,38,.08);border-bottom:1px solid rgba(220,38,38,.2)">
+      <i class="fas fa-arrows-split-up-and-left" style="color:var(--bear)"></i>
+      <span style="color:var(--bear)">⚡ Contra Intelligence</span>
+      <span style="font-size:8px;color:var(--text2);font-weight:400;margin-left:6px">— WITH-Trend vs Against-Trend Signal Efficiency Tracker</span>
+    </div>
+    <div id="contraContent" style="padding:4px 0"></div>
+  </div>
+
 </div><!-- end intel page -->
 
 <!-- NIFTY ENTRY RADAR PAGE -->
@@ -811,6 +822,7 @@ const META_KEY = SCHEMA+'_meta';
 const PF_KEY = SCHEMA+'_pf';
 const PF_ARCH_KEY = SCHEMA+'_pf_arch';
 const EARN_KEY = SCHEMA+'_earn';
+const CONTRA_KEY = SCHEMA+'_contra';
 
 const HMA_FAST = 9, HMA_SLOW = 10;
 const SMI_K = 10, SMI_D = 3, SMI_SM = 3;
@@ -1373,6 +1385,105 @@ function buildKellyData() {
 }
 function getKelly(sym){return kellyData[sym]?kellyData[sym].kelly_pct:null}
 
+// ═══════════════════════════════════════════════════════════
+// CONTRA INTELLIGENCE — Layer 6: Trend Alignment Learning
+// Tracks win rates for WITH-trend vs CONTRA-trend signals
+// per regime and feeds adjustments back into score generation
+// ═══════════════════════════════════════════════════════════
+function buildContraPerf() {
+  const ledger = loadLedger();
+  const resolved = ledger.filter(r => r.status === 'win' || r.status === 'loss');
+  contraPerf = {};
+
+  resolved.forEach(r => {
+    const sig    = r.signal || '';
+    const regime = r.regime  || 'flat';
+    const isBuy  = sig.startsWith('B');
+    const dir    = isBuy ? 'buy' : 'sell';
+
+    // Derive alignment from stored field; fall back to signal+regime logic for older records
+    let aln = r.regime_at_entry;
+    if(!aln || aln === 'neutral') {
+      if(regime === 'bull')      aln = isBuy ? 'aligned'    : 'contrarian';
+      else if(regime === 'bear') aln = isBuy ? 'contrarian' : 'aligned';
+      else                       aln = 'neutral';
+    }
+
+    const win = r.status === 'win';
+
+    // --- Granular: signal | regime | alignment ---
+    const gKey = sig + '|' + regime + '|' + aln;
+    if(!contraPerf[gKey]) contraPerf[gKey] = {w:0,t:0,wr:50,sig,regime,aln,dir,type:'signal'};
+    contraPerf[gKey].t++;
+    if(win) contraPerf[gKey].w++;
+    contraPerf[gKey].wr = Math.round(contraPerf[gKey].w / contraPerf[gKey].t * 100);
+
+    // --- Aggregate: regime | alignment | direction ---
+    const aKey = 'AGG|' + regime + '|' + aln + '|' + dir;
+    if(!contraPerf[aKey]) contraPerf[aKey] = {w:0,t:0,wr:50,regime,aln,dir,type:'agg'};
+    contraPerf[aKey].t++;
+    if(win) contraPerf[aKey].w++;
+    contraPerf[aKey].wr = Math.round(contraPerf[aKey].w / contraPerf[aKey].t * 100);
+
+    // --- Timeline: for improvement tracking (last 30 vs all) ---
+    const tKey = 'TREND|' + regime + '|' + aln;
+    if(!contraPerf[tKey]) contraPerf[tKey] = {all:{w:0,t:0},recent:{w:0,t:0},dates:[]};
+    contraPerf[tKey].all.t++;
+    if(win) contraPerf[tKey].all.w++;
+    contraPerf[tKey].dates.push({date:r.entry_date||'',win});
+    if(contraPerf[tKey].dates.length > 30) contraPerf[tKey].dates.shift();
+    const last20 = contraPerf[tKey].dates.slice(-20);
+    contraPerf[tKey].recent = {
+      t: last20.length,
+      w: last20.filter(x=>x.win).length
+    };
+  });
+
+  saveContraPerf();
+}
+
+// Returns score adjustment based on learnt contra performance
+// Called during processAll for every signal; uses global overallRegime + regimeData
+function getContraAdj(signal, mktRegime) {
+  const isBuy = signal.startsWith('B');
+  // Compute alignment the same way sigObj does
+  let aln;
+  if(overallRegime === 'full')  aln = isBuy ? 'aligned' : 'contrarian';
+  else if(overallRegime === 'bear') aln = isBuy ? 'contrarian' : 'aligned';
+  else {
+    const nt = (regimeData['NSEI'] || regimeData['CRSLDX'] || {trend:'flat'}).trend;
+    if(nt === 'bull') aln = isBuy ? 'partial' : 'contrarian';
+    else if(nt === 'bear') aln = isBuy ? 'contrarian' : 'partial';
+    else aln = 'neutral';
+  }
+
+  if(aln === 'aligned') return 0; // Never penalise WITH-trend signals here
+
+  const BK = 63.6;
+
+  // 1. Try granular signal-level data first (need ≥5 trades for confidence)
+  const gKey = signal + '|' + mktRegime + '|' + aln;
+  const g    = contraPerf[gKey];
+  if(g && g.t >= 5) {
+    if(g.wr < 45)  return -10;  // Strong negative EV — heavy penalty
+    if(g.wr < 55)  return -5;   // Below breakeven — moderate penalty
+    if(g.wr >= 65) return +5;   // Positive EV even against trend — boost
+    return 0;
+  }
+
+  // 2. Fall back to aggregate regime+alignment+direction (need ≥10 trades)
+  const dir  = isBuy ? 'buy' : 'sell';
+  const aKey = 'AGG|' + mktRegime + '|' + aln + '|' + dir;
+  const ag   = contraPerf[aKey];
+  if(ag && ag.t >= 10) {
+    if(ag.wr < 45)  return -8;
+    if(ag.wr < 55)  return -3;
+    if(ag.wr >= 65) return +3;
+  }
+
+  return 0; // not enough data yet — no adjustment
+}
+
 // ── IRAVAT-exact per-stock weekly trend ──
 function calcWeeklyTrend(rows) {
   if (rows.length < 30) return 'neut';
@@ -1521,9 +1632,9 @@ async function processAll(bySymbol) {
   allStockData=bySymbol; allSignals=[];
   const symbols=Object.keys(bySymbol);
   setProgress(3,'M6: Recalibrating learning layers…');
-  loadWeights();loadTpsl();loadSeqWR();loadIndPref();
+  loadWeights();loadTpsl();loadSeqWR();loadIndPref();loadContraPerf();
   recalibrateWeights();buildStockTPSL();buildSeqWinRates();buildStockIndicatorPreferences();
-  buildKellyData();
+  buildKellyData();buildContraPerf();
   await sleep(0);
 
   // Regime detection
@@ -1718,7 +1829,9 @@ async function processAll(bySymbol) {
       if(ctx.wr < 45)  ctxAdj = -8;
       else if(ctx.wr > 70) ctxAdj = 5;
     }
-    const finalScore = Math.min(100, Math.max(0, score + ctxAdj));
+    // Contra Intelligence Layer — learnt penalty/boost for against-trend signals
+    const contraAdj = getContraAdj(signal, mktRegime);
+    const finalScore = Math.min(100, Math.max(0, score + ctxAdj + contraAdj));
     const prevSig   = prevSigMap[sym] || null;
     const ret250    = stockReturns[sym] ? stockReturns[sym].ret_250 : null;
     const nseiCorr  = corrData[sym] ? corrData[sym]['NSEI'] || corrData[sym]['CRSLDX'] || null : null;
@@ -1745,6 +1858,7 @@ async function processAll(bySymbol) {
       nsei_corr:nseiCorr, mb_score:mbSc,
       earn_prox:earnProx, best_indicator:globalBestInd,
       ret_250:ret250,
+      ctx_adj:ctxAdj, contra_adj:contraAdj,
       // IRAVAT extras — used for display
       weeklyTrend, barsAgo, weeklyAligned:(signal.startsWith('B')&&weeklyTrend==='bull')||(signal.startsWith('S')&&weeklyTrend==='bear'),
       regime_alignment:(function(){
@@ -1779,7 +1893,7 @@ async function processAll(bySymbol) {
         prev_signal:prevSig,best_indicator:globalBestInd,
         avg_bef_exit:null
       };
-      rec.regime_at_entry=rec.regime_alignment||'neutral';rec.index_alignments_at_entry=rec.index_alignments||{};
+      rec.regime_at_entry=sigObj.regime_alignment||'neutral';rec.index_alignments_at_entry=sigObj.index_alignments||{};
       ledger.push(rec);
       newAdded++;
     }
@@ -2686,6 +2800,15 @@ function saveEarnings(){
   try{localStorage.setItem(EARN_KEY,JSON.stringify(earningsData))}catch(e){}
 }
 
+function loadContraPerf(){
+  try{const r=localStorage.getItem(CONTRA_KEY);if(r)contraPerf=JSON.parse(r)}catch(e){}
+  idbGet(CONTRA_KEY).then(d=>{if(d&&typeof d==='object')contraPerf={...d,...contraPerf}});
+}
+function saveContraPerf(){
+  idbSet(CONTRA_KEY,contraPerf);
+  try{localStorage.setItem(CONTRA_KEY,JSON.stringify(contraPerf))}catch(e){}
+}
+
 function pfLoad(){
   try{
     const p=localStorage.getItem(PF_KEY),a=localStorage.getItem(PF_ARCH_KEY);
@@ -2754,7 +2877,7 @@ function exportBeforeClear(){
     updatePills();
   },500);
 }
-function exportAll(){const data={ledger:loadLedger(),weights:adaptiveWeights,ctx:contextWRMap,tpsl:stockTPSL,seqWR:seqWinRates,kellyData,stockIndPref,meta:loadMeta(),schema:SCHEMA};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`nandi_v8_${new Date().toISOString().slice(0,10)}.json`;a.click();toast('Full export done','ok')}
+function exportAll(){const data={ledger:loadLedger(),weights:adaptiveWeights,ctx:contextWRMap,tpsl:stockTPSL,seqWR:seqWinRates,kellyData,stockIndPref,contraPerf,meta:loadMeta(),schema:SCHEMA};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`nandi_v8_${new Date().toISOString().slice(0,10)}.json`;a.click();toast('Full export done','ok')}
 
 // ═══════════════════════════════════════════════════════════
 // RENDER — PAGE 1: SCANNER
@@ -3357,6 +3480,7 @@ function renderRetCorr() {
 // REGIME PANEL (IRAVAT-style)
 // ═══════════════════════════════════════════════════════════
 let overallRegime = 'caution';
+let contraPerf = {}; // key: "signal|regime|alignment" → {w,t,wr}  — Contra Intelligence Layer
 
 function buildRegimePanel() {
   const keys = Object.keys(regimeData);
@@ -3506,7 +3630,7 @@ function switchIntel(name){
 }
 function renderIntelActive(){const active=document.querySelector('.i-panel.active');if(active)renderIntelTab(active.id.replace('intel-',''))}
 function renderIntelTab(name){
-  const map={m6:renderM6,m1:renderM1,m4:renderM4,m2:renderM2,m3:renderM3,m5:renderM5,m7:renderM7,tpsl:renderTPSL,mb:renderMB,sectors:renderSectors,ledger:renderLedger,retcorr:renderRetCorr, wrref:function(){},regimexperf:function(){renderRegimeCrossPerf();},slDash:renderSLDash};
+  const map={m6:renderM6,m1:renderM1,m4:renderM4,m2:renderM2,m3:renderM3,m5:renderM5,m7:renderM7,tpsl:renderTPSL,mb:renderMB,sectors:renderSectors,ledger:renderLedger,retcorr:renderRetCorr, wrref:function(){},regimexperf:function(){renderRegimeCrossPerf();},slDash:renderSLDash,contra:renderContraIntel};
   if(map[name])map[name]();
 }
 
@@ -3887,6 +4011,39 @@ function renderSLDash(){
       <td style="font-size:8px;color:var(--text2)">${v.wr>65?'Strong confirmation pattern — system boosts score':v.wr<40?'Reversal trap — system penalises score':'Neutral pattern'}</td></tr>`).join('')}
     </tbody></table></div>`
     :'<div class="c-dim" style="font-family:var(--mono);font-size:9px">Need more trades per stock to identify sequence patterns.</div>'}
+  </div>
+
+  <div class="sl-section">
+    <div class="sl-title">⚡ Contra Intelligence — Against-Trend Signal Performance</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-bottom:8px">
+      Tracks how signals fired AGAINST the prevailing trend perform vs WITH-trend signals. Feeds directly into score adjustments.
+    </div>
+    ${(()=>{
+      const res=loadLedger().filter(r=>r.status==='win'||r.status==='loss');
+      let wA=0,tA=0,wC=0,tC=0;
+      res.forEach(r=>{
+        const sig=r.signal||'',rg=r.regime||'flat',isBuy=sig.startsWith('B'),win=r.status==='win';
+        let aln=r.regime_at_entry;
+        if(!aln||aln==='neutral'){if(rg==='bull')aln=isBuy?'aligned':'contrarian';else if(rg==='bear')aln=isBuy?'contrarian':'aligned';else aln='neutral';}
+        if(aln==='aligned'){tA++;if(win)wA++;}
+        else if(aln==='contrarian'){tC++;if(win)wC++;}
+      });
+      const wrA=tA?Math.round(wA/tA*100):null, wrC=tC?Math.round(wC/tC*100):null;
+      const edge=(wrA!==null&&wrC!==null)?wrA-wrC:null;
+      const adj=Object.values(contraPerf).filter(d=>d.type==='signal'&&d.t>=5&&(d.wr<55||d.wr>=65)).length;
+      if(!tA&&!tC)return'<div class="c-dim" style="font-family:var(--mono);font-size:9px">No resolved trades yet. Data builds as portfolios dissolve.</div>';
+      return`<div class="sl-grid">
+        <div class="sl-card"><label>WITH-Trend WR</label><span class="val ${wrA>=63?'c-bull':wrA>=54?'c-amb':'c-bear'}">${wrA!==null?wrA+'%':'—'}</span></div>
+        <div class="sl-card"><label>CONTRA WR</label><span class="val ${wrC>=63?'c-bull':wrC>=54?'c-amb':'c-bear'}">${wrC!==null?wrC+'%':'—'}</span></div>
+        <div class="sl-card"><label>Edge (A−C)</label><span class="val ${edge>10?'c-bull':edge>0?'c-amb':'c-bear'}">${edge!==null?(edge>0?'+':'')+edge+'pp':'—'}</span></div>
+        <div class="sl-card"><label>Active Adj Rules</label><span class="val c-purple">${adj}</span></div>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;margin-top:6px;color:var(--text2)">
+        ${wrC!==null&&wrC<63.6?`⚠️ Contra signals underperforming (${wrC}% vs 63.6% breakeven) — system penalising ${tC} contra trades detected.`
+        :wrC!==null?`✓ Contra signals working (${wrC}% WR) — minimal penalty applied.`:'Accumulating data…'}
+        <br><a href="#" onclick="switchIntel('contra');return false" style="color:var(--bear);text-decoration:none;font-size:8px">→ Open full Contra Intelligence tab for detailed breakdown</a>
+      </div>`;
+    })()}
   </div>`;
 }
 
@@ -4365,6 +4522,320 @@ function checkAutoExport(){
     }
   });
 })();
+// ═══════════════════════════════════════════════════════════
+// RENDER — CONTRA INTELLIGENCE LAB
+// ═══════════════════════════════════════════════════════════
+function renderContraIntel() {
+  var el = document.getElementById('contraContent');
+  if(!el) return;
+
+  var BK = 63.6;
+  var ledger = loadLedger();
+  var resolved = ledger.filter(function(r){return r.status==='win'||r.status==='loss';});
+
+  // ── EMPTY STATE ──
+  if(resolved.length < 3) {
+    el.innerHTML = '<div style="padding:30px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--text2)">' +
+      '<div style="font-size:32px;opacity:.2;margin-bottom:12px">⚡</div>' +
+      '<strong>Contra Intelligence builds from resolved trades.</strong><br>' +
+      '<span style="color:var(--text3)">Currently ' + resolved.length + ' resolved trade(s). This panel populates as portfolios dissolve.<br>' +
+      'It will then learn which against-trend signals actually work and feed penalties/boosts directly into signal scores.</span></div>';
+    return;
+  }
+
+  // ── COMPUTE STATS ──
+  var REGIMES = ['bull','bear','flat'];
+  var ALNS    = ['aligned','contrarian','partial','neutral'];
+  var SIGS    = ['B2','B3','B1-OS','B1-MOM','S2','S3','S1-OB','S1-MOM'];
+
+  // Build matrix: regime → alignment → {buy,sell} → {w,t}
+  var mat = {};
+  REGIMES.forEach(function(rg){
+    mat[rg] = {};
+    ALNS.forEach(function(al){ mat[rg][al] = {buy:{w:0,t:0},sell:{w:0,t:0}}; });
+  });
+  resolved.forEach(function(r){
+    var sig  = r.signal||'';
+    var rg   = r.regime||'flat';
+    var isBuy= sig.startsWith('B');
+    var dir  = isBuy?'buy':'sell';
+    var win  = r.status==='win';
+    var aln  = r.regime_at_entry;
+    if(!aln||aln==='neutral'){
+      if(rg==='bull')      aln = isBuy?'aligned':'contrarian';
+      else if(rg==='bear') aln = isBuy?'contrarian':'aligned';
+      else aln='neutral';
+    }
+    if(mat[rg]&&mat[rg][aln]){
+      mat[rg][aln][dir].t++;
+      if(win) mat[rg][aln][dir].w++;
+    }
+  });
+
+  function wr(o){return o.t>0?Math.round(o.w/o.t*100):null;}
+  function bar(w,t,mini){
+    if(w===null)return'<span style="color:var(--text3)">—</span>';
+    var c=w>=BK?'var(--bull)':w>=54?'var(--amber)':'var(--bear)';
+    var bw=mini?50:80;
+    return '<div style="display:flex;align-items:center;gap:5px">' +
+      '<div style="width:'+bw+'px;height:4px;background:var(--border);border-radius:2px;overflow:hidden">' +
+      '<div style="height:100%;width:'+Math.min(w,100)+'%;background:'+c+';border-radius:2px"></div></div>' +
+      '<strong style="color:'+c+'">'+w+'%</strong><span style="color:var(--text3);font-size:7px">n='+t+'</span></div>';
+  }
+  function adjBadge(adj){
+    if(adj===0)return'<span style="color:var(--text3)">0</span>';
+    var c=adj>0?'var(--bull)':'var(--bear)';
+    return'<strong style="color:'+c+'">'+(adj>0?'+':'')+adj+'</strong>';
+  }
+  function grade(w){
+    if(w===null)return'<span class="b b-dim">—</span>';
+    if(w>=65)return'<span class="b b-bull">EV+</span>';
+    if(w>=BK)return'<span class="b b-teal">OK</span>';
+    if(w>=54)return'<span class="b b-amb">WEAK</span>';
+    return'<span class="b b-bear">EV−</span>';
+  }
+
+  // ── SUMMARY TOTALS ──
+  var totWith=0,winWith=0,totContra=0,winContra=0,totPartial=0,winPartial=0;
+  resolved.forEach(function(r){
+    var sig=r.signal||''; var rg=r.regime||'flat'; var isBuy=sig.startsWith('B'); var win=r.status==='win';
+    var aln=r.regime_at_entry;
+    if(!aln||aln==='neutral'){if(rg==='bull')aln=isBuy?'aligned':'contrarian';else if(rg==='bear')aln=isBuy?'contrarian':'aligned';else aln='neutral';}
+    if(aln==='aligned'){totWith++;if(win)winWith++;}
+    else if(aln==='contrarian'){totContra++;if(win)winContra++;}
+    else if(aln==='partial'){totPartial++;if(win)winPartial++;}
+  });
+  var wrWith=totWith?Math.round(winWith/totWith*100):null;
+  var wrContra=totContra?Math.round(winContra/totContra*100):null;
+  var wrPartial=totPartial?Math.round(winPartial/totPartial*100):null;
+  var edge=(wrWith!==null&&wrContra!==null)?wrWith-wrContra:null;
+
+  // ── COUNT ACTIVE ADJUSTMENTS ──
+  var activeAdj=[];
+  SIGS.forEach(function(sig){
+    REGIMES.forEach(function(rg){
+      ['contrarian','partial'].forEach(function(aln){
+        var gKey=sig+'|'+rg+'|'+aln;
+        var d=contraPerf[gKey];
+        if(d&&d.t>=5){
+          var adj=0;
+          if(d.wr<45)adj=-10;else if(d.wr<55)adj=-5;else if(d.wr>=65)adj=+5;
+          if(adj!==0)activeAdj.push({sig,rg,aln,wr:d.wr,t:d.t,adj,type:'signal'});
+        }
+      });
+    });
+  });
+  // Aggregate fallbacks
+  ['buy','sell'].forEach(function(dir){
+    REGIMES.forEach(function(rg){
+      ['contrarian','partial'].forEach(function(aln){
+        var aKey='AGG|'+rg+'|'+aln+'|'+dir;
+        var d=contraPerf[aKey];
+        if(d&&d.t>=10){
+          var adj=0;
+          if(d.wr<45)adj=-8;else if(d.wr<55)adj=-3;else if(d.wr>=65)adj=+3;
+          if(adj!==0&&!activeAdj.find(function(a){return a.rg===rg&&a.aln===aln&&a.type==='signal';}))
+            activeAdj.push({sig:dir.toUpperCase()+'[all]',rg,aln,wr:d.wr,t:d.t,adj,type:'agg'});
+        }
+      });
+    });
+  });
+
+  // ── COUNT TODAY'S CONTRA SIGNALS ──
+  var todayContra=allSignals.filter(function(s){return s.regime_alignment==='contrarian';});
+  var todayPartial=allSignals.filter(function(s){return s.regime_alignment==='partial';});
+  var todayAligned=allSignals.filter(function(s){return s.regime_alignment==='aligned';});
+  var todayAdjusted=allSignals.filter(function(s){return (s.contra_adj||0)!==0;});
+
+  // ── BUILD HTML ──
+  var h='';
+
+  // --- SUMMARY HEADER ---
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px;padding:10px 4px">';
+  var sCards=[
+    ['WITH-Trend Signals',totWith,wrWith,'var(--bull)'],
+    ['CONTRA Signals',totContra,wrContra,'var(--bear)'],
+    ['PARTIAL Signals',totPartial,wrPartial,'var(--amber)'],
+    ['Breakeven WR',null,63.6,'var(--text2)'],
+    ['Trend Edge (A−C)',null,edge!==null?edge+'pp':null,'var(--kite)'],
+    ['Active Adj Today',todayAdjusted.length,null,'var(--purple)'],
+  ];
+  sCards.forEach(function(sc){
+    var label=sc[0],count=sc[1],val=sc[2],color=sc[3];
+    var valStr=val!==null?(typeof val==='number'&&val%1===0?val+'%':val+'%'):'—';
+    if(label==='Trend Edge (A−C)')valStr=edge!==null?(edge>0?'+':'')+edge+'pp':'—';
+    if(label==='Active Adj Today')valStr=todayAdjusted.length+' signals';
+    h+='<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px">' +
+       '<div style="font-family:var(--mono);font-size:7px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">'+label+'</div>' +
+       (count!==null?'<div style="font-family:var(--mono);font-size:8px;color:var(--text2)">n='+count+'</div>':'') +
+       '<div style="font-family:var(--mono);font-size:13px;font-weight:700;color:'+color+'">'+valStr+'</div></div>';
+  });
+  h+='</div>';
+
+  // --- INSIGHT BOX ---
+  var insightColor=(edge!==null&&edge>10)?'var(--bull)':(edge!==null&&edge<-5)?'var(--bear)':'var(--amber)';
+  var insightMsg='';
+  if(edge===null)insightMsg='Accumulating data across both aligned and contra trades to measure the edge gap.';
+  else if(wrContra!==null&&wrContra<BK)insightMsg='Contra signals are BELOW breakeven ('+wrContra+'% WR vs '+BK+'% needed). System is learning to penalise them. Favour WITH-trend setups.';
+  else if(wrContra!==null&&wrContra>=65)insightMsg='Contra signals are surprisingly working well ('+wrContra+'% WR). This often means individual stock stories are dominating over regime — system will boost strong contra setups.';
+  else insightMsg='Contra signals are marginal ('+wrContra+'% WR vs '+BK+'% breakeven). System is applying mild penalties to contra scores.';
+  h+='<div style="background:linear-gradient(135deg,rgba(220,38,38,.05),rgba(99,102,241,.04));border:1px solid var(--border);border-left:3px solid '+insightColor+';border-radius:var(--r-lg);padding:10px 14px;font-family:var(--mono);font-size:9px;margin-bottom:14px">' +
+     '<strong style="color:'+insightColor+'">🧠 NANDI LEARNT: </strong>' + insightMsg + '</div>';
+
+  // --- REGIME × ALIGNMENT TABLE ---
+  h+='<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">REGIME × ALIGNMENT WIN RATES — BUY &amp; SELL</div>';
+  h+='<div class="tw" style="margin-bottom:14px"><table>';
+  h+='<thead><tr><th>Regime</th><th>Direction</th><th style="color:var(--bull)">ALIGNED (WITH)</th><th style="color:var(--amber)">PARTIAL</th><th style="color:var(--bear)">CONTRARIAN</th><th>Edge A−C</th><th>System Action</th></tr></thead><tbody>';
+  REGIMES.forEach(function(rg){
+    ['buy','sell'].forEach(function(dir){
+      var aligned=mat[rg].aligned[dir], contra=mat[rg].contrarian[dir], partial=mat[rg].partial[dir];
+      var wA=wr(aligned),wC=wr(contra),wP=wr(partial);
+      var edgAC=(wA!==null&&wC!==null)?wA-wC:null;
+      var edgColor=edgAC===null?'var(--text3)':edgAC>15?'var(--bull)':edgAC>5?'var(--amber)':'var(--text2)';
+      var action='';
+      if(wC===null)action='<span style="color:var(--text3)">Accumulating…</span>';
+      else if(contra.t<5)action='<span style="color:var(--text3)">Need '+Math.max(0,5-contra.t)+' more trades</span>';
+      else if(wC<45)action='<span class="b b-bear">−10 pts penalty</span>';
+      else if(wC<55)action='<span class="b b-amb">−5 pts penalty</span>';
+      else if(wC>=65)action='<span class="b b-bull">+5 pts boost</span>';
+      else action='<span class="b b-dim">No adj (borderline)</span>';
+      var regBg=rg==='bear'?'background:rgba(220,38,38,.03)':rg==='bull'?'background:rgba(5,150,105,.03)':'';
+      var dirBadge=dir==='buy'?'<span class="b b-bull">BUY</span>':'<span class="b b-bear">SELL</span>';
+      h+='<tr style="'+regBg+'"><td style="font-family:var(--mono);font-weight:700;color:var(--text2);text-transform:uppercase">'+rg+'</td>' +
+         '<td>'+dirBadge+'</td>' +
+         '<td>'+bar(wA,aligned.t,true)+'</td>' +
+         '<td>'+bar(wP,partial.t,true)+'</td>' +
+         '<td>'+bar(wC,contra.t,true)+'</td>' +
+         '<td style="font-family:var(--mono);font-weight:700;color:'+edgColor+'">'+(edgAC!==null?(edgAC>0?'+':'')+edgAC+'pp':'—')+'</td>' +
+         '<td>'+action+'</td></tr>';
+    });
+  });
+  h+='</tbody></table></div>';
+
+  // --- SIGNAL × REGIME CONTRA MATRIX ---
+  h+='<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">SIGNAL × REGIME — CONTRARIAN WIN RATE MATRIX</div>';
+  h+='<div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-bottom:6px">Shows WR when each signal fires AGAINST the prevailing trend. Red = system penalising. Green = contra working.</div>';
+  h+='<div class="tw" style="margin-bottom:14px"><table class="corr-table">';
+  h+='<thead><tr><th>Signal</th><th>BEAR regime (contra buy / contra sell)</th><th>BULL regime</th><th>FLAT regime</th><th>Active Adj</th></tr></thead><tbody>';
+  SIGS.forEach(function(sig){
+    var isBuy=sig.startsWith('B');
+    var cAln=isBuy?'contrarian':'contrarian'; // contra in any regime
+    var cells=REGIMES.map(function(rg){
+      var key=sig+'|'+rg+'|contrarian';
+      var d=contraPerf[key];
+      if(!d||d.t===0)return'<td class="cr-n">—</td>';
+      var w=d.wr,cl=w>=65?'cr-sp':w>=BK?'cr-mp':w>=54?'cr-n':'cr-sn';
+      var adj=0;if(d.t>=5){if(w<45)adj=-10;else if(w<55)adj=-5;else if(w>=65)adj=+5;}
+      return'<td class="'+cl+'">'+w+'%<br><span style="font-size:7px;opacity:.6">n='+d.t+'</span>'+(adj!==0?'<br><span style="font-size:7px;color:'+(adj<0?'var(--bear)':'var(--bull)')+'">adj '+(adj>0?'+':'')+adj+'</span>':'')+'</td>';
+    });
+    var anyAdj=activeAdj.filter(function(a){return a.sig===sig;});
+    h+='<tr><td style="font-family:var(--mono);font-weight:700;color:'+(isBuy?'var(--bull)':'var(--bear)')+'">'+sig+'</td>'+cells.join('')+'<td>'+
+       (anyAdj.length?anyAdj.map(function(a){return adjBadge(a.adj);}).join(' '):'<span style="color:var(--text3)">—</span>')+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+
+  // --- ACTIVE SCORE ADJUSTMENTS ---
+  if(activeAdj.length>0){
+    h+='<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">ACTIVE SCORE ADJUSTMENTS BEING APPLIED RIGHT NOW</div>';
+    h+='<div class="tw" style="margin-bottom:14px"><table><thead><tr><th>Signal</th><th>Regime</th><th>Alignment</th><th>WR%</th><th>Trades</th><th>Score Adj</th><th>Reason</th></tr></thead><tbody>';
+    activeAdj.sort(function(a,b){return a.adj-b.adj;}).forEach(function(a){
+      var reason=a.wr<45?'Strong negative EV — heavy penalty':a.wr<55?'Below breakeven — moderate penalty':a.wr>=65?'Positive EV contra — boost':'Borderline';
+      var adjCl=a.adj<0?'c-bear':'c-bull';
+      h+='<tr><td style="font-family:var(--mono);font-weight:700">'+(a.sig.startsWith('B')?'<span class="b b-bull">':'<span class="b b-bear">')+a.sig+'</span></td>' +
+         '<td style="color:var(--text2)">'+a.rg+'</td>' +
+         '<td><span class="b '+(a.aln==='contrarian'?'b-bear':a.aln==='partial'?'b-amb':'b-dim')+'">'+a.aln+'</span></td>' +
+         '<td class="'+(a.wr>=BK?'c-bull':a.wr>=54?'c-amb':'c-bear')+'">'+a.wr+'%</td>' +
+         '<td class="c-dim">'+a.t+'</td>' +
+         '<td class="'+adjCl+'" style="font-weight:700">'+(a.adj>0?'+':'')+a.adj+'</td>' +
+         '<td style="font-size:8px;color:var(--text2)">'+reason+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+  } else {
+    h+='<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;font-family:var(--mono);font-size:9px;color:var(--text2);margin-bottom:14px">' +
+       '<strong>No active adjustments yet.</strong> System needs ≥5 trades per signal+regime+alignment combo (or ≥10 for aggregate) to apply adjustments with confidence.</div>';
+  }
+
+  // --- TODAY'S SIGNALS IMPACT ---
+  h+='<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">TODAY\'S SIGNAL BREAKDOWN BY ALIGNMENT</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">';
+  [
+    {label:'WITH Trend',signals:todayAligned,color:'var(--bull)',badge:'b-bull'},
+    {label:'PARTIAL (NSEI aligned)',signals:todayPartial,color:'var(--amber)',badge:'b-amb'},
+    {label:'CONTRA (Against trend)',signals:todayContra,color:'var(--bear)',badge:'b-bear'},
+  ].forEach(function(g){
+    var avg=g.signals.length?Math.round(g.signals.reduce(function(s,x){return s+x.score;},0)/g.signals.length):0;
+    var adjusted=g.signals.filter(function(s){return (s.contra_adj||0)!==0;}).length;
+    h+='<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px">' +
+       '<div class="b '+g.badge+'" style="margin-bottom:6px">'+g.label+'</div>' +
+       '<div style="font-family:var(--mono);font-size:18px;font-weight:700;color:'+g.color+'">'+g.signals.length+'</div>' +
+       '<div style="font-family:var(--mono);font-size:8px;color:var(--text2)">signals</div>' +
+       '<div style="font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:4px">Avg score: '+avg+' · Adj: '+adjusted+'</div></div>';
+  });
+  h+='</div>';
+
+  if(todayAdjusted.length>0){
+    h+='<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">SIGNALS ADJUSTED TODAY BY CONTRA INTELLIGENCE</div>';
+    h+='<div class="tw" style="margin-bottom:14px"><table><thead><tr><th>Symbol</th><th>Signal</th><th>Alignment</th><th>Raw Score</th><th>Contra Adj</th><th>Final Score</th><th>Impact</th></tr></thead><tbody>';
+    todayAdjusted.sort(function(a,b){return a.contra_adj-b.contra_adj;}).forEach(function(s){
+      var adjCl=(s.contra_adj||0)<0?'c-bear':'c-bull';
+      h+='<tr><td><strong>'+s.symbol+'</strong></td>' +
+         '<td>'+s.signal+'</td>' +
+         '<td><span class="b '+(s.regime_alignment==='contrarian'?'b-bear':s.regime_alignment==='partial'?'b-amb':'b-dim')+'">'+s.regime_alignment+'</span></td>' +
+         '<td>'+s.raw_score+'</td>' +
+         '<td class="'+adjCl+'">'+(s.contra_adj>0?'+':'')+s.contra_adj+'</td>' +
+         '<td><strong>'+s.score+'</strong></td>' +
+         '<td style="font-size:8px;color:var(--text2)">'+(s.contra_adj<0?'Score lowered — historical contra WR insufficient':'Score boosted — contra working well in this regime')+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+  }
+
+  // --- TRAJECTORY SECTION ---
+  h+='<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--text2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">CONTRA WIN RATE TRAJECTORY — IS THE SYSTEM IMPROVING?</div>';
+  var trajectoryRows=[];
+  REGIMES.forEach(function(rg){
+    ['contrarian','partial'].forEach(function(aln){
+      var tk='TREND|'+rg+'|'+aln;
+      var d=contraPerf[tk];
+      if(!d||d.all.t<5)return;
+      var allWR=Math.round(d.all.w/d.all.t*100);
+      var recentWR=d.recent.t>0?Math.round(d.recent.w/d.recent.t*100):null;
+      var trend='';
+      if(recentWR!==null&&recentWR>allWR+3)trend='<span class="c-bull">▲ Improving</span>';
+      else if(recentWR!==null&&recentWR<allWR-3)trend='<span class="c-bear">▼ Degrading</span>';
+      else trend='<span class="c-dim">~ Stable</span>';
+      trajectoryRows.push({rg,aln,all:d.all.t,allWR,recent:d.recent.t,recentWR,trend});
+    });
+  });
+  if(trajectoryRows.length>0){
+    h+='<div class="tw" style="margin-bottom:14px"><table><thead><tr><th>Regime</th><th>Alignment</th><th>All-Time WR</th><th>Recent 20 WR</th><th>Trajectory</th></tr></thead><tbody>';
+    trajectoryRows.forEach(function(r){
+      h+='<tr><td style="font-family:var(--mono);font-weight:700">'+r.rg+'</td>' +
+         '<td><span class="b '+(r.aln==='contrarian'?'b-bear':'b-amb')+'">'+r.aln+'</span></td>' +
+         '<td>'+bar(r.allWR,r.all,true)+'</td>' +
+         '<td>'+(r.recentWR!==null?bar(r.recentWR,r.recent,true):'<span style="color:var(--text3)">—</span>')+'</td>' +
+         '<td>'+r.trend+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+  } else {
+    h+='<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:14px">Trajectory data builds as more trades resolve.</div>';
+  }
+
+  // --- KEY PRINCIPLE BOX ---
+  h+='<div style="background:linear-gradient(135deg,rgba(220,38,38,.06),rgba(99,102,241,.04));border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 14px;font-family:var(--mono);font-size:9px;color:var(--text)">' +
+     '<div style="font-weight:700;color:var(--bright);margin-bottom:8px">HOW CONTRA INTELLIGENCE FEEDS BACK INTO SIGNAL SCORES</div>' +
+     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+     '<div><div style="color:var(--text2);margin-bottom:4px"><strong style="color:var(--bear)">Penalty triggers</strong> (applied to score):</div>' +
+     '<div>• WR &lt; 45% (≥5 trades): <strong class="c-bear">−10 pts</strong> (strong negative EV)</div>' +
+     '<div>• WR 45–55% (≥5 trades): <strong class="c-amb">−5 pts</strong> (below breakeven)</div>' +
+     '<div>• Aggregate WR &lt; 45% (≥10 trades): <strong class="c-bear">−8 pts</strong></div></div>' +
+     '<div><div style="color:var(--text2);margin-bottom:4px"><strong style="color:var(--bull)">Boost triggers</strong>:</div>' +
+     '<div>• WR ≥ 65% (≥5 trades): <strong class="c-bull">+5 pts</strong> (contra working)</div>' +
+     '<div>• Aggregate WR ≥ 65% (≥10 trades): <strong class="c-bull">+3 pts</strong></div>' +
+     '<div>• WITH-trend signals: <strong class="c-dim">no penalty ever</strong></div></div></div>' +
+     '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);color:var(--text3)">Adjustments are combined with the existing Context WR adjustment (−8/+5) for a compound learning effect. Both require minimum trade thresholds before activating.</div></div>';
+
+  el.innerHTML = h;
+}
 function renderRegimeCrossPerf(){
   var el=document.getElementById('intel-regimexperf');if(!el)return;
   var ledger=loadLedger(),res=ledger.filter(function(r){return r.status==='win'||r.status==='loss';});
