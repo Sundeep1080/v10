@@ -3866,6 +3866,11 @@ function renderSLDash(){
     </tbody></table></div>`
     :'<div class="c-dim" style="font-family:var(--mono);font-size:9px">Need more trades per stock to identify sequence patterns.</div>'}
   </div>`;
+  // Update storage info async
+  idbSize().then(({usedMB,quotaMB})=>{
+    const el2=document.getElementById('slStorageInfo');
+    if(el2) el2.textContent=`📦 IndexedDB: ${usedMB}MB used of ${quotaMB}MB available | Ledger: ${resolved.length} resolved + ${openTrades} open trades`;
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4211,11 +4216,6 @@ function check3PMAlert(){
   // Reset flag after 3:15 PM
   const now=new Date();
   if(now.getHours()===15&&now.getMinutes()>=15) _pfAlertShown=false;
-  // Update storage info async
-  idbSize().then(({usedMB,quotaMB})=>{
-    const el2=document.getElementById('slStorageInfo');
-    if(el2) el2.textContent=`📦 IndexedDB storage: ${usedMB}MB used of ${quotaMB}MB available on your device | Ledger: ${resolved.length} resolved + ${openTrades} open trades`;
-  });
 }
 
 // ═══════════════════════════════════════════════════════════
