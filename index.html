@@ -1705,6 +1705,9 @@ async function processAll(bySymbol) {
     // ── Score — exact IRAVAT calcScore ──
     const score = calcScore(signal, bandZone, barsAgo, weeklyTrend, rr);
 
+    // ── NANDI intelligence layer (kept) ──
+    const secBrd    = sectorBreadth[info.sector] || {pct:50};
+
     // ── FEEDBACK LOOP B: Context suppression/boost ──
     // If this signal+regime+zone context has a learnt WR < 45% (≥5 trades) → penalise -8
     // If WR > 70% (≥5 trades) → boost +5
@@ -1716,9 +1719,6 @@ async function processAll(bySymbol) {
       else if(ctx.wr > 70) ctxAdj = 5;
     }
     const finalScore = Math.min(100, Math.max(0, score + ctxAdj));
-
-    // ── NANDI intelligence layer (kept) ──
-    const secBrd    = sectorBreadth[info.sector] || {pct:50};
     const prevSig   = prevSigMap[sym] || null;
     const ret250    = stockReturns[sym] ? stockReturns[sym].ret_250 : null;
     const nseiCorr  = corrData[sym] ? corrData[sym]['NSEI'] || corrData[sym]['CRSLDX'] || null : null;
