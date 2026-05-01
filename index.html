@@ -441,10 +441,11 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
     <div class="top25-panel">
       <div class="top25-hdr bull">
         <div class="top25-title c-bull"><i class="fas fa-arrow-trend-up"></i> Top 50 BUY Signals Today</div>
-        <div style="margin-left:auto;display:flex;gap:5px">
+        <div style="margin-left:auto;display:flex;gap:5px;align-items:center">
           <button class="btn btn-d" style="font-size:8px;padding:2px 7px" onclick="sortTop25('buy','score')">Score</button>
           <button class="btn btn-d" style="font-size:8px;padding:2px 7px" onclick="sortTop25('buy','kelly')">Kelly</button>
           <button class="btn btn-d" style="font-size:8px;padding:2px 7px" onclick="sortTop25('buy','rr')">R:R</button>
+          <button class="btn btn-g" style="font-size:8px;padding:2px 9px" onclick="exportTop25CSV('buy')"><i class="fas fa-download"></i> CSV</button>
         </div>
       </div>
       <div class="tw"><table id="top25BuyTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25BuyZone">250d Zone</th><th>HVP</th><th>Entry Date</th><th>Entry ₹</th><th>CMP ₹</th><th>SMI</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25BuyBody"></tbody></table></div>
@@ -452,10 +453,11 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
     <div class="top25-panel">
       <div class="top25-hdr bear">
         <div class="top25-title c-bear"><i class="fas fa-arrow-trend-down"></i> Top 50 SELL Signals Today</div>
-        <div style="margin-left:auto;display:flex;gap:5px">
+        <div style="margin-left:auto;display:flex;gap:5px;align-items:center">
           <button class="btn btn-d" style="font-size:8px;padding:2px 7px" onclick="sortTop25('sell','score')">Score</button>
           <button class="btn btn-d" style="font-size:8px;padding:2px 7px" onclick="sortTop25('sell','kelly')">Kelly</button>
           <button class="btn btn-d" style="font-size:8px;padding:2px 7px" onclick="sortTop25('sell','rr')">R:R</button>
+          <button class="btn btn-r" style="font-size:8px;padding:2px 9px" onclick="exportTop25CSV('sell')"><i class="fas fa-download"></i> CSV</button>
         </div>
       </div>
       <div class="tw"><table id="top25SellTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25SellZone">250d Zone</th><th>HVP</th><th>Entry Date</th><th>Entry ₹</th><th>CMP ₹</th><th>SMI</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25SellBody"></tbody></table></div>
@@ -2929,17 +2931,6 @@ function renderTop25() {
   };
   document.getElementById('top25BuyBody').innerHTML=buys.length?buys.map(row).join(''):`<tr><td colspan="17" class="empty">No buy signals today</td></tr>`;
   document.getElementById('top25SellBody').innerHTML=sells.length?sells.map(row).join(''):`<tr><td colspan="17" class="empty">No sell signals today</td></tr>`;
-  // Attach quick-CSV export buttons if not already present
-  ['Buy','Sell'].forEach(t=>{
-    const hdr=document.querySelector(`.top25-hdr.${t.toLowerCase()}`);
-    if(hdr&&!hdr.querySelector('.top25-csv-btn')){
-      const btn=document.createElement('button');
-      btn.className='btn btn-d top25-csv-btn';btn.style.cssText='font-size:8px;padding:2px 7px';
-      btn.innerHTML='<i class="fas fa-download"></i> CSV';
-      btn.onclick=()=>exportTop25CSV(t.toLowerCase());
-      hdr.appendChild(btn);
-    }
-  });
 }
 function sortTop25(type,col){if(type==='buy')top25SortBuy=col;else top25SortSell=col;renderTop25()}
 
@@ -3094,7 +3085,8 @@ function renderPFCards() {
           <div class="pf-title ${pf.type==='buy'?'c-bull':'c-bear'}">${pf.type.toUpperCase()} Portfolio · ${pf.day}</div>
           <div class="pf-meta">${pf.stocks.length} stocks · ${pf.sectors?pf.sectors.length+' sectors · ':''} Score≥${pf.minScoreUsed||'—'} · ${pf.regimeAtCreation?pf.regimeAtCreation.toUpperCase()+' regime · ':''} Dissolves ${pf.dissolveDay} ${pf.dissolveDate} · ${(function(){var s=pf.alignmentSummary||{},p=[];if(s.aligned>0)p.push('<span style="color:var(--bull)">'+s.aligned+' WITH</span>');if(s.partial>0)p.push('<span style="color:var(--amber)">'+s.partial+' PART</span>');if(s.contrarian>0)p.push('<span style="color:var(--bear)">'+s.contrarian+' CONTRA</span>');return p.join(' · ')||'';})()} </div>
         </div>
-        <div style="text-align:right">
+        <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <button class="${pf.type==='buy'?'btn btn-g':'btn btn-r'}" style="font-size:8px;padding:2px 9px" onclick="exportSinglePortfolioCSV('${pf.id||pf.day+pf.type}')"><i class="fas fa-download"></i> CSV</button>
           <div class="pf-stat"><label>P&L</label><span class="${pnlClass}">${pf.totalPnlPct>=0?'+':''}${pf.totalPnlPct}%</span></div>
           <div class="pf-meta c-dim">₹${(pf.totalPnl||0).toLocaleString('en-IN')}</div>
         </div>
@@ -4622,6 +4614,18 @@ function exportPortfolioCSV() {
     }
   },300);
   toast('Portfolio symbol CSVs exported (buy + sell separate)','ok');
+}
+
+function exportSinglePortfolioCSV(id) {
+  // Match by id or by day+type composite key
+  const pf=dailyPortfolios.find(p=>(p.id&&p.id===id)||(p.day+p.type===id));
+  if(!pf||!pf.stocks||!pf.stocks.length){toast('Portfolio not found','err');return}
+  const names=pf.stocks.map(s=>s.symbol).join('\n');
+  const blob=new Blob([names],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`nandi_pf_${pf.type}_${pf.day||new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast(`${pf.type.toUpperCase()} portfolio symbols exported (${pf.stocks.length} stocks)`,'ok');
 }
 
 // ═══════════════════════════════════════════════════════════
