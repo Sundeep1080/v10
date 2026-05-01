@@ -447,7 +447,7 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
           <button class="btn btn-d" style="font-size:8px;padding:2px 7px" onclick="sortTop25('buy','rr')">R:R</button>
         </div>
       </div>
-      <div class="tw"><table id="top25BuyTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25BuyZone">250d Zone</th><th>HVP</th><th>Trigger ₹</th><th>CMP ₹</th><th>SMI</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25BuyBody"></tbody></table></div>
+      <div class="tw"><table id="top25BuyTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25BuyZone">250d Zone</th><th>HVP</th><th>Entry Date</th><th>Entry ₹</th><th>CMP ₹</th><th>SMI</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25BuyBody"></tbody></table></div>
     </div>
     <div class="top25-panel">
       <div class="top25-hdr bear">
@@ -458,7 +458,7 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
           <button class="btn btn-d" style="font-size:8px;padding:2px 7px" onclick="sortTop25('sell','rr')">R:R</button>
         </div>
       </div>
-      <div class="tw"><table id="top25SellTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25SellZone">250d Zone</th><th>HVP</th><th>Trigger ₹</th><th>CMP ₹</th><th>SMI</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25SellBody"></tbody></table></div>
+      <div class="tw"><table id="top25SellTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25SellZone">250d Zone</th><th>HVP</th><th>Entry Date</th><th>Entry ₹</th><th>CMP ₹</th><th>SMI</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25SellBody"></tbody></table></div>
     </div>
   </div>
   <div class="insights-strip" id="insightStrip" style="display:none"></div>
@@ -536,10 +536,10 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
     <div id="spreadsPanel"><div class="empty">Create portfolios to see spread recommendations</div></div>
   </div>
   <div class="card" style="margin-top:8px">
-    <div class="ct"><i class="fas fa-archive"></i> Portfolio Archive
+    <div class="ct"><i class="fas fa-archive"></i> Portfolio Archive — Full Stock Detail
       <button class="btn btn-d" style="font-size:8px;padding:2px 7px;margin-left:auto" onclick="exportPFArchive()"><i class="fas fa-download"></i> Export CSV</button>
     </div>
-    <div class="tw"><table><thead><tr><th>Day</th><th>Type</th><th>Created</th><th>Closed Date</th><th>Stocks</th><th>Total P&L%</th><th>Total P&L₹</th><th>WR</th><th>Avg Score</th><th>Best Performer</th><th>Worst Performer</th></tr></thead><tbody id="pfArchiveBody"></tbody></table></div>
+    <div id="pfArchiveBody"></div>
   </div>
 </div>
 
@@ -1713,6 +1713,14 @@ async function processAll(bySymbol) {
     const signal = detectSALT(h9, h10, smi, smiSig, bandZone);
     if (signal === 'WAIT') continue;
 
+    // ── POINT 2: SMI direction must agree with signal direction ──
+    // Buy signals: SMI must be rising (today > yesterday)
+    // Sell signals: SMI must be falling (today < yesterday)
+    const smiNow  = smi[n]  !== null ? smi[n]  : 0;
+    const smiPrev = smi[n-1]!== null ? smi[n-1]: smiNow;
+    if (signal.startsWith('B') && smiNow <= smiPrev) continue;
+    if (signal.startsWith('S') && smiNow >= smiPrev) continue;
+
     // ── HVP (NANDI extra — kept) ──
     const hvLast=hvs[n]||15;
     const hvArr=hvs.filter(v=>v!==null);
@@ -2235,6 +2243,7 @@ function createDailyPortfolios() {
       symbol:s.symbol,sector:s.sector,signal:s.signal,score:s.score,
       cmp:s.cmp,tp:s.tp,sl:s.sl,rr:s.rr,kelly_pct:s.kelly_pct,
       band_zone:s.band_zone,hvp:s.hvp,trigger_price:s.trigger_price||s.cmp,
+      entry_date:s.entry_date||new Date().toISOString().slice(0,10),
       regime_alignment:s.regime_alignment,
       current_price:s.cmp,pnl_pct:0,pnl_amt:0,status:'open'
     })), capital);
@@ -2255,6 +2264,7 @@ function createDailyPortfolios() {
       symbol:s.symbol,sector:s.sector,signal:s.signal,score:s.score,
       cmp:s.cmp,tp:s.tp,sl:s.sl,rr:s.rr,kelly_pct:s.kelly_pct,
       band_zone:s.band_zone,hvp:s.hvp,trigger_price:s.trigger_price||s.cmp,
+      entry_date:s.entry_date||new Date().toISOString().slice(0,10),
       regime_alignment:s.regime_alignment,
       current_price:s.cmp,pnl_pct:0,pnl_amt:0,status:'open',
       spread_type:s.signal==='S1-MOM'||s.signal==='S3'?'bear_put':'bear_call'
@@ -2815,6 +2825,17 @@ function selectTop25(signals,type){
   var q=signals.filter(function(s){
     if(isBuy&&!s.signal.startsWith('B'))return false;
     if(!isBuy&&!s.signal.startsWith('S'))return false;
+    // ── POINT 1: barsAgo 0 = always allow. barsAgo 1 = only if CMP >= prev_close (price hasn't fallen). barsAgo > 1 = reject ──
+    const bars=s.barsAgo||0;
+    if(bars>1)return false;
+    if(bars===1){
+      // For 1-day-old buy signals: CMP must not be lower than previous close
+      if(isBuy && s.prev_close && s.cmp < s.prev_close) return false;
+      // For 1-day-old sell signals: CMP must not be higher than previous close
+      if(!isBuy && s.prev_close && s.cmp > s.prev_close) return false;
+      // Also require strong signal for 1-day-old: must be is_good_combo or score ≥ regThr+10
+      if(!s.is_good_combo && s.score < regThr+10) return false;
+    }
     if(s.is_good_combo)return true;
     if(s.signal==='B1-MOM'||s.signal==='B1-OS'||s.signal==='S1-OB')return false;
     return s.score>=regThr;
@@ -2882,14 +2903,18 @@ function renderTop25() {
     const trigPx=s.trigger_price||s.cmp;
     const drift=trigPx>0?((s.cmp-trigPx)/trigPx*100):0;
     const driftStr=drift!==0?` <span class="${drift>0?'c-bull':'c-bear'}" style="font-size:7px">${drift>0?'+':''}${drift.toFixed(1)}%</span>`:'';
+    // Entry date display (just dd-Mon format for compactness)
+    const entryDate=s.entry_date||'—';
+    const entryDateShort=entryDate!=='—'?entryDate.slice(5).replace('-','/'):'—';
     return`<tr class="${sigClass(s.signal)}">
       <td class="c-dim">${idealFlag}${i+1}</td>
-      <td>${staleBadge}${alignBadge}${goodFlag}<strong>${s.symbol}</strong></td>
+      <td>${alignBadge}${goodFlag}<strong>${s.symbol}</strong></td>
       <td>${sigBadge(s.signal)}</td>
       <td><strong class="${scoreCls}">${s.score}</strong></td>
       <td>${concBadge2}</td>
       <td>${bz}</td>
       <td><span class="${s.hvp>60?'c-bull':s.hvp<35?'c-bear':'c-amb'}">${s.hvp}</span></td>
+      <td class="c-dim" style="font-size:8px">${entryDateShort}</td>
       <td class="c-dim">₹${trigPx.toFixed(1)}</td>
       <td>₹${s.cmp.toFixed(1)}${driftStr}</td>
       <td>${smiStr}</td>
@@ -3051,8 +3076,11 @@ function renderPFCards() {
       var _pa=s.regime_alignment||'neutral';var _pb=_pa==='aligned'?'<span class="b" style="background:rgba(5,150,105,.15);color:var(--bull);border-color:rgba(5,150,105,.3);font-size:7px">WITH</span> ':_pa==='contrarian'?'<span class="b" style="background:rgba(220,38,38,.12);color:var(--bear);border-color:rgba(220,38,38,.3);font-size:7px">CONTRA</span> ':_pa==='partial'?'<span class="b" style="background:rgba(245,158,11,.12);color:var(--amber);border-color:rgba(217,119,6,.3);font-size:7px">PART</span> ':'';
       const trigPx=s.trigger_price||s.cmp;
       const livePx=s.current_price||s.cmp;
+      const entryD=s.entry_date||pf.createdDate||'—';
+      const entryDShort=entryD!=='—'?entryD.slice(5).replace('-','/'):'—';
       return`<tr><td>${_pb}${s.symbol}</td><td>${s.sector.substring(0,12)}</td>
         <td>${sigBadge(s.signal)}</td>
+        <td class="c-dim" style="font-size:8px">${entryDShort}</td>
         <td class="c-dim">₹${trigPx.toFixed(1)}</td>
         <td>₹${livePx.toFixed(1)}</td>
         <td class="${sc}">${sp>0?'+':''}${sp}%</td>
@@ -3078,7 +3106,7 @@ function renderPFCards() {
           <div class="pf-stat"><label>Capital</label><span>₹${(pf.capital||0).toLocaleString('en-IN')}</span></div>
         </div>
         <div class="tw" style="max-height:220px;overflow-y:auto">
-          <table><thead><tr><th>Symbol</th><th>Sector</th><th>Signal</th><th>Trigger ₹</th><th>CMP ₹</th><th>P&L%</th><th>P&L₹</th><th>Status</th><th>Order</th></tr></thead>
+          <table><thead><tr><th>Symbol</th><th>Sector</th><th>Signal</th><th>Entry Date</th><th>Entry ₹</th><th>CMP ₹</th><th>P&L%</th><th>P&L₹</th><th>Status</th><th>Order</th></tr></thead>
           <tbody>${rows}</tbody></table>
         </div>
       </div>
@@ -3113,34 +3141,105 @@ function renderSpreads() {
 }
 
 function renderPFArchive() {
-  const tb=document.getElementById('pfArchiveBody');
-  if(!tb)return;
-  tb.innerHTML=dpfArchive.slice().reverse().map(pf=>{
+  const container=document.getElementById('pfArchiveBody');
+  if(!container)return;
+  if(!dpfArchive.length){
+    container.innerHTML='<div style="padding:16px;text-align:center;color:var(--text2);font-size:11px">No closed portfolios yet — close active ones when due</div>';
+    return;
+  }
+  container.innerHTML=dpfArchive.slice().reverse().map(pf=>{
     const pnlClass=pf.totalPnlPct>=0?'c-bull':'c-bear';
-    const best=pf.stocks&&pf.stocks.length?pf.stocks.reduce((m,s)=>(s.pnl_pct||0)>(m.pnl_pct||0)?s:m,pf.stocks[0]):null;
-    const worst=pf.stocks&&pf.stocks.length?pf.stocks.reduce((m,s)=>(s.pnl_pct||0)<(m.pnl_pct||0)?s:m,pf.stocks[0]):null;
-    const typeLabel=pf.type==='buy'?'<span class="b b-bull">BUY→SOLD</span>':'<span class="b b-bear">SELL→COVERED</span>';
-    const bestStr=best?(best.pnl_pct||0)>=0?`${best.symbol} <span class="c-bull">+${(best.pnl_pct||0).toFixed(2)}%</span>`:`${best.symbol} <span class="c-dim">${(best.pnl_pct||0).toFixed(2)}%</span>`:'—';
-    const worstStr=worst?`${worst.symbol} <span class="c-bear">${(worst.pnl_pct||0).toFixed(2)}%</span>`:'—';
-    return`<tr>
-      <td>${pf.dayName}</td>
-      <td>${typeLabel}</td>
-      <td>${pf.createdDate}</td>
-      <td>${pf.dissolvedDate||pf.dissolveDate}</td>
-      <td>${pf.stocks?pf.stocks.length:0}</td>
-      <td class="${pnlClass}">${pf.totalPnlPct>=0?'+':''}${(pf.totalPnlPct||0).toFixed(2)}%</td>
-      <td class="${pnlClass}">₹${(pf.totalPnl||0).toLocaleString('en-IN')}</td>
-      <td>${pf.winCount||0}W / ${pf.lossCount||0}L</td>
-      <td class="c-amb">${pf.avgScore||0}</td>
-      <td>${bestStr}</td>
-      <td>${worstStr}</td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="11" class="empty">No closed portfolios yet — dissolve active ones when due</td></tr>';
+    const typeLabel=pf.type==='buy'
+      ?'<span class="b b-bull">BUY → SOLD</span>'
+      :'<span class="b b-bear">SELL → COVERED</span>';
+    const holdDays=pf.createdDate&&pf.dissolvedDate
+      ?Math.round((new Date(pf.dissolvedDate)-new Date(pf.createdDate))/(1000*60*60*24))
+      :'?';
+    // Summary bar
+    const summary=`
+      <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 10px;background:var(--bg2);border-radius:6px;margin-bottom:6px;font-size:10px;align-items:center">
+        <span>${typeLabel}</span>
+        <span class="c-dim">📅 ${pf.createdDate} → ${pf.dissolvedDate||pf.dissolveDate}</span>
+        <span class="c-dim">⏱ ${holdDays}d hold</span>
+        <span class="${pnlClass}">📊 Total: ${pf.totalPnlPct>=0?'+':''}${(pf.totalPnlPct||0).toFixed(2)}% (₹${(pf.totalPnl||0).toLocaleString('en-IN')})</span>
+        <span class="c-amb">✦ Avg Score: ${pf.avgScore||0}</span>
+        <span class="c-dim">🎯 ${pf.winCount||0}W / ${pf.lossCount||0}L (WR: ${pf.stocks&&pf.stocks.length?Math.round((pf.winCount||0)/pf.stocks.length*100):0}%)</span>
+      </div>`;
+    // Stock-level detail table
+    const stockRows=(pf.stocks||[]).map(s=>{
+      const pnl=s.pnl_pct||0;
+      const sc=pnl>0?'c-bull':pnl<0?'c-bear':'c-dim';
+      const entryPx=s.trigger_price||s.cmp;
+      const exitPx=s.current_price||s.cmp;
+      // TP/SL hit detection
+      let outcome='<span class="c-dim">—</span>';
+      if(s.status==='tp_hit'||(s.tp&&exitPx>=s.tp&&pf.type==='buy')||(s.tp&&exitPx<=s.tp&&pf.type==='sell')){
+        outcome='<span class="b b-bull">✅ TP HIT</span>';
+      } else if(s.status==='sl_hit'||(s.sl&&exitPx<=s.sl&&pf.type==='buy')||(s.sl&&exitPx>=s.sl&&pf.type==='sell')){
+        outcome='<span class="b b-bear">❌ SL HIT</span>';
+      } else if(pnl>0){
+        outcome='<span class="b" style="background:rgba(5,150,105,.1);color:var(--bull);border-color:rgba(5,150,105,.3)">▲ PROFIT</span>';
+      } else if(pnl<0){
+        outcome='<span class="b" style="background:rgba(220,38,38,.1);color:var(--bear);border-color:rgba(220,38,38,.3)">▼ LOSS</span>';
+      }
+      const drift=entryPx>0?((exitPx-entryPx)/entryPx*100):0;
+      return`<tr>
+        <td><strong>${s.symbol}</strong></td>
+        <td style="font-size:8px;max-width:70px;overflow:hidden;text-overflow:ellipsis">${(s.sector||'').substring(0,14)}</td>
+        <td>${sigBadge(s.signal)}</td>
+        <td class="c-dim">${s.entry_date?s.entry_date.slice(5).replace('-','/'):pf.createdDate?pf.createdDate.slice(5).replace('-','/'):'—'}</td>
+        <td class="c-dim">₹${(entryPx||0).toFixed(2)}</td>
+        <td>₹${(exitPx||0).toFixed(2)}</td>
+        <td class="${sc}"><strong>${pnl>=0?'+':''}${pnl.toFixed(2)}%</strong></td>
+        <td class="${sc}">₹${(s.pnl_amt||0).toFixed(0)}</td>
+        <td class="c-dim">₹${(s.tp||0).toFixed(2)}</td>
+        <td class="c-dim">₹${(s.sl||0).toFixed(2)}</td>
+        <td>${outcome}</td>
+        <td class="c-dim">${s.score||0}</td>
+      </tr>`;
+    }).join('');
+    return`<div class="card" style="margin-bottom:10px;border:1px solid rgba(255,255,255,.06)">
+      <div class="ct" style="font-size:10px;padding:6px 10px">${pf.dayName||pf.day||''} — ${pf.createdDate}</div>
+      ${summary}
+      <div class="tw"><table>
+        <thead><tr>
+          <th>Symbol</th><th>Sector</th><th>Signal</th><th>Entry Date</th>
+          <th>Entry ₹</th><th>Exit ₹</th><th>Return %</th><th>P&L ₹</th>
+          <th>TP ₹</th><th>SL ₹</th><th>Outcome</th><th>Score</th>
+        </tr></thead>
+        <tbody>${stockRows||'<tr><td colspan="12" class="empty">No stock data</td></tr>'}</tbody>
+      </table></div>
+    </div>`;
+  }).join('');
 }
+
 function exportPFArchive(){
-  const rows=dpfArchive.map(p=>[p.dayName,p.type,p.createdDate,p.dissolveDate,p.stocks?p.stocks.length:0,p.totalPnlPct||0,p.totalPnl||0,`${p.winCount||0}W/${p.lossCount||0}L`,p.avgScore||0].join(','));
-  const blob=new Blob([['Day,Type,Created,Dissolve,Stocks,PnL%,PnL₹,WR,AvgScore',...rows].join('\n')],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='nandi_portfolio_archive.csv';a.click();
+  if(!dpfArchive.length){toast('No archive to export','err');return}
+  const hdrs=['Portfolio','Day','Type','CreatedDate','ClosedDate','Symbol','Sector','Signal','EntryDate','Entry_Price','Exit_Price','Return_Pct','PnL_INR','TP','SL','Outcome','Score'];
+  const rows=[];
+  dpfArchive.forEach(pf=>{
+    (pf.stocks||[]).forEach(s=>{
+      const entryPx=s.trigger_price||s.cmp;
+      const exitPx=s.current_price||s.cmp;
+      let outcome='open';
+      if(s.status==='tp_hit'||(s.tp&&exitPx>=s.tp&&pf.type==='buy')||(s.tp&&exitPx<=s.tp&&pf.type==='sell')) outcome='TP_HIT';
+      else if(s.status==='sl_hit'||(s.sl&&exitPx<=s.sl&&pf.type==='buy')||(s.sl&&exitPx>=s.sl&&pf.type==='sell')) outcome='SL_HIT';
+      else if((s.pnl_pct||0)>0) outcome='PROFIT';
+      else if((s.pnl_pct||0)<0) outcome='LOSS';
+      rows.push([
+        pf.dayName||'',pf.day||'',pf.type,pf.createdDate,pf.dissolvedDate||pf.dissolveDate,
+        s.symbol,s.sector||'',s.signal,
+        s.entry_date||pf.createdDate||'',
+        (entryPx||0).toFixed(2),(exitPx||0).toFixed(2),
+        (s.pnl_pct||0).toFixed(2),(s.pnl_amt||0).toFixed(0),
+        (s.tp||0).toFixed(2),(s.sl||0).toFixed(2),
+        outcome,s.score||0
+      ].join(','));
+    });
+  });
+  const blob=new Blob([[hdrs.join(','),...rows].join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`nandi_archive_stockwise_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  toast('Archive exported with full stock detail','ok');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4494,45 +4593,35 @@ function renderRegimeCrossPerf(){
 // POINT 4 — CSV EXPORTS: Top25 symbols + Portfolio symbols
 // ═══════════════════════════════════════════════════════════
 function exportTop25CSV(type) {
-  const thr=getRegimeThreshold();
   const list=type==='buy'?selectTop25(allSignals,'buy'):selectTop25(allSignals,'sell');
   if(!list.length){toast('No '+type+' signals to export','err');return}
-  const hdrs=['Symbol','Sector','Signal','Score','Zone','Trigger_Price','CMP','SMI','TP','SL','RR','HistWR%','Kelly%','BarsAgo','Stale','WeeklyTrend','Ret250%'];
-  const rows=list.map(s=>[
-    s.symbol,s.sector,s.signal,s.score,s.band_zone,
-    (s.trigger_price||s.cmp).toFixed(2),s.cmp.toFixed(2),
-    s.smi_last||0,s.tp,s.sl,s.rr,
-    s.wr_lookup||'',s.kelly_pct||'',
-    s.barsAgo||0,s.barsAgo>1?'STALE':'FRESH',
-    s.weeklyTrend||'',s.ret_250||''
-  ].join(','));
-  const blob=new Blob([[hdrs.join(','),...rows].join('\n')],{type:'text/csv'});
+  const names=list.map(s=>s.symbol).join('\n');
+  const blob=new Blob([names],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=`nandi_top50_${type}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
-  toast(`Top 50 ${type} CSV exported`,'ok');
+  toast(`Top 50 ${type} symbols exported (${list.length} stocks)`,'ok');
 }
 
 function exportPortfolioCSV() {
   const active=dailyPortfolios.filter(p=>p.status==='active');
   if(!active.length){toast('No active portfolios','err');return}
-  const hdrs=['Portfolio','Symbol','Sector','Signal','Trigger_Price','CMP','TP','SL','RR','Score','Zone','P&L%','Status'];
-  const rows=[];
-  active.forEach(pf=>{
-    pf.stocks.forEach(s=>{
-      rows.push([
-        pf.type.toUpperCase()+'_'+pf.day,
-        s.symbol,s.sector,s.signal,
-        (s.trigger_price||s.cmp).toFixed(2),
-        (s.current_price||s.cmp).toFixed(2),
-        s.tp,s.sl,s.rr,s.score,s.band_zone||'',
-        s.pnl_pct||0,s.status||'open'
-      ].join(','));
-    });
-  });
-  const blob=new Blob([[hdrs.join(','),...rows].join('\n')],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download=`nandi_portfolio_symbols_${new Date().toISOString().slice(0,10)}.csv`;a.click();
-  toast('Portfolio symbols CSV exported','ok');
+  const buyPF=active.find(p=>p.type==='buy');
+  const sellPF=active.find(p=>p.type==='sell');
+  if(buyPF&&buyPF.stocks.length){
+    const names=buyPF.stocks.map(s=>s.symbol).join('\n');
+    const blob=new Blob([names],{type:'text/csv'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=`nandi_portfolio_buy_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  }
+  setTimeout(()=>{
+    if(sellPF&&sellPF.stocks.length){
+      const names=sellPF.stocks.map(s=>s.symbol).join('\n');
+      const blob=new Blob([names],{type:'text/csv'});
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+      a.download=`nandi_portfolio_sell_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+    }
+  },300);
+  toast('Portfolio symbol CSVs exported (buy + sell separate)','ok');
 }
 
 // ═══════════════════════════════════════════════════════════
