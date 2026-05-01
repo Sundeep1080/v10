@@ -257,9 +257,24 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
 .ob-buy:hover{background:rgba(5,150,105,.2)}
 .ob-sell{background:var(--bear-g);color:var(--bear);border:1px solid rgba(220,38,38,.3);border-radius:3px;padding:1px 6px;font-family:var(--mono);font-size:8px;font-weight:700;cursor:pointer;white-space:nowrap}
 .ob-sell:hover{background:rgba(220,38,38,.2)}
-/* Prevent wrapping in Top25 tables */
-#top25BuyTbl td, #top25SellTbl td, #sigTbl td { white-space:nowrap }
-#top25BuyTbl th, #top25SellTbl th, #sigTbl th { white-space:nowrap }
+/* Compact Top25 tables */
+#top25BuyTbl, #top25SellTbl {
+  font-size:9px;
+}
+#top25BuyTbl td, #top25SellTbl td, #sigTbl td { white-space:nowrap; padding:3px 5px; }
+#top25BuyTbl th, #top25SellTbl th, #sigTbl th { white-space:nowrap; padding:3px 5px; font-size:8px; }
+/* Sticky Symbol column — always visible on left */
+#top25BuyTbl td:nth-child(2), #top25SellTbl td:nth-child(2),
+#top25BuyTbl th:nth-child(2), #top25SellTbl th:nth-child(2) {
+  position:sticky; left:0; background:var(--bg2); z-index:2;
+  border-right:1px solid var(--border2);
+}
+/* Sticky Order column — always visible on right */
+#top25BuyTbl td:last-child, #top25SellTbl td:last-child,
+#top25BuyTbl th:last-child, #top25SellTbl th:last-child {
+  position:sticky; right:0; background:var(--bg2); z-index:2;
+  border-left:1px solid var(--border2); padding-left:6px;
+}
 #top25BuyTbl td:nth-child(13), #top25SellTbl td:nth-child(13),
 #top25BuyTbl th:nth-child(13), #top25SellTbl th:nth-child(13) { max-width:52px; width:52px }
 
@@ -458,7 +473,7 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
           <button class="btn btn-g" style="font-size:8px;padding:2px 9px" onclick="exportTop25CSV('buy')"><i class="fas fa-download"></i> CSV</button>
         </div>
       </div>
-      <div class="tw"><table id="top25BuyTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25BuyZone">250d Zone</th><th>HVP</th><th>Entry Date</th><th>Entry ₹</th><th>CMP ₹</th><th>SMI</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25BuyBody"></tbody></table></div>
+      <div class="tw"><table id="top25BuyTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25BuyZone">250d Z</th><th>HVP</th><th>DoE</th><th>Entry ₹</th><th>CMP ₹</th><th>SMI</th><th>TP</th><th>SL</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25BuyBody"></tbody></table></div>
     </div>
     <div class="top25-panel">
       <div class="top25-hdr bear">
@@ -470,7 +485,7 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
           <button class="btn btn-r" style="font-size:8px;padding:2px 9px" onclick="exportTop25CSV('sell')"><i class="fas fa-download"></i> CSV</button>
         </div>
       </div>
-      <div class="tw"><table id="top25SellTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25SellZone">250d Zone</th><th>HVP</th><th>Entry Date</th><th>Entry ₹</th><th>CMP ₹</th><th>SMI</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25SellBody"></tbody></table></div>
+      <div class="tw"><table id="top25SellTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25SellZone">250d Z</th><th>HVP</th><th>DoE</th><th>Entry ₹</th><th>CMP ₹</th><th>SMI</th><th>TP</th><th>SL</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25SellBody"></tbody></table></div>
     </div>
   </div>
   <div class="insights-strip" id="insightStrip" style="display:none"></div>
