@@ -315,6 +315,16 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
       <div><div class="om-label">Stop (SL)</div><div class="om-val c-bear" id="omSl">—</div></div>
     </div>
     <div class="om-divider"></div>
+    <!-- INVESTMENT AMOUNT → AUTO QTY -->
+    <div style="margin-bottom:10px">
+      <div class="om-label">Investment Amount (₹)</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:4px">
+        <button class="btn btn-d" style="font-size:13px;padding:0 10px;height:32px;line-height:1" onclick="adjustInvestment(-5000)">−</button>
+        <input class="om-inp" id="omInvest" type="number" step="1000" value="35000" oninput="calcQtyFromInvestment()" style="text-align:center;font-size:13px;font-weight:700;color:var(--amber)">
+        <button class="btn btn-d" style="font-size:13px;padding:0 10px;height:32px;line-height:1" onclick="adjustInvestment(5000)">+</button>
+      </div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--text2);margin-top:3px" id="omInvestNote">Auto-calculates qty from CMP</div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div>
         <div class="om-label">Quantity</div>
@@ -526,6 +536,7 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
         <label style="font-family:var(--mono);font-size:9px;color:var(--text2)">Min score</label>
         <input class="fi" id="pfMinScore" value="55" style="width:55px" title="Regime auto-enforces minimum. Breakeven WR=63.6% with TP=2% SL=3.5%">
         <button class="btn btn-a" onclick="createDailyPortfolios()"><i class="fas fa-plus"></i> Create Today's Portfolios</button>
+        <button class="btn btn-d" onclick="rebuildPortfolios()" title="Delete stale portfolios and rebuild using only today's filtered signals"><i class="fas fa-redo"></i> Rebuild (Today's Signals Only)</button>
         <button class="btn btn-g" onclick="updateDPFPnL()"><i class="fas fa-sync"></i> Update P&L</button>
         <button class="btn btn-r" onclick="dissolvePortfolios()"><i class="fas fa-check-circle"></i> Close Expired</button>
         <button class="btn btn-d" onclick="exportPortfolioCSV()" title="Export all portfolio stock names to CSV"><i class="fas fa-download"></i> Export Symbols CSV</button>
@@ -2342,27 +2353,47 @@ function updateDPFPnL() {
       const live=zdPrices[s.symbol]||zdPrices['NSE:'+s.symbol];
       if(live&&live>0){
         s.current_price=live;
-        s.pnl_pct=parseFloat(((live-s.cmp)/s.cmp*100).toFixed(2));
-        s.pnl_amt=Math.round((live-s.cmp)*s.qty);
+        // Always compute actual return from entry price — never freeze after TP/SL
+        const entryPx=s.trigger_price||s.cmp;
+        const rawPnlPct=(live-entryPx)/entryPx*100;
+        s.pnl_pct=parseFloat(rawPnlPct.toFixed(2));
+        s.pnl_amt=Math.round((live-entryPx)*(s.qty||1));
         updated++;
-        // Check TP/SL
+        // TP/SL status = informational badge only, does NOT freeze the P&L tracking
         if(pf.type==='buy'){
-          if(live>=s.tp)s.status='TP';
-          else if(live<=s.sl)s.status='SL';
+          if(live>=s.tp) s.status='TP';
+          else if(live<=s.sl) s.status='SL';
+          else s.status='open';
         } else {
-          if(live<=s.tp)s.status='TP';
-          else if(live>=s.sl)s.status='SL';
+          if(live<=s.tp) s.status='TP';
+          else if(live>=s.sl) s.status='SL';
+          else s.status='open';
         }
       }
     });
-    const tot=pf.stocks.reduce((s,x)=>s+x.pnl_amt,0);
+    // Portfolio-level totals always recomputed from actual stock returns
+    const tot=pf.stocks.reduce((sum,x)=>sum+(x.pnl_amt||0),0);
     pf.totalPnl=tot;
-    pf.totalPnlPct=parseFloat((tot/pf.capital*100).toFixed(2));
-    pf.winCount=pf.stocks.filter(s=>s.pnl_pct>0).length;
-    pf.lossCount=pf.stocks.filter(s=>s.pnl_pct<0).length;
+    pf.totalPnlPct=pf.capital?parseFloat((tot/pf.capital*100).toFixed(2)):0;
+    pf.winCount=pf.stocks.filter(s=>(s.pnl_pct||0)>0).length;
+    pf.lossCount=pf.stocks.filter(s=>(s.pnl_pct||0)<0).length;
+    pf.avgScore=pf.stocks.length?Math.round(pf.stocks.reduce((s,x)=>s+(x.score||0),0)/pf.stocks.length):0;
   });
   pfSave();
   if(updated>0)renderPage2();
+}
+
+function rebuildPortfolios() {
+  if(!allSignals||!allSignals.length){toast('Load CSV data first','err');return}
+  const active=dailyPortfolios.filter(p=>p.status==='active');
+  if(!active.length&&!confirm('No active portfolios found. Create fresh ones from today\'s signals?'))return;
+  if(active.length&&!confirm(`This will DELETE the current ${active.length} active portfolio(s) and rebuild using only today\'s signals (barsAgo=0, SMI-filtered).\n\nProceed?`))return;
+  // Remove all active portfolios (preserve dissolved/archived ones)
+  dailyPortfolios=dailyPortfolios.filter(p=>p.status!=='active');
+  pfSave();
+  // Now create fresh from today's filtered signals
+  createDailyPortfolios();
+  toast('Portfolios rebuilt from today\'s filtered signals only','ok');
 }
 
 function dissolvePortfolios() {
@@ -2371,7 +2402,13 @@ function dissolvePortfolios() {
   dailyPortfolios.filter(p=>p.status==='active').forEach(pf=>{
     if(pf.dissolveDate<=today){
       pf.status='dissolved';pf.dissolvedDate=today;
-      // Recompute final stats before archiving so archive always reflects latest P&L
+      // Recompute final stats before archiving — use trigger_price as entry, current_price as exit
+      pf.stocks.forEach(s=>{
+        const entryPx=s.trigger_price||s.cmp;
+        const exitPx=s.current_price||s.cmp;
+        s.pnl_pct=parseFloat(((exitPx-entryPx)/entryPx*100).toFixed(2));
+        s.pnl_amt=Math.round((exitPx-entryPx)*(s.qty||1));
+      });
       pf.winCount=pf.stocks.filter(s=>(s.pnl_pct||0)>0).length;
       pf.lossCount=pf.stocks.filter(s=>(s.pnl_pct||0)<0).length;
       const tot=pf.stocks.reduce((sum,s)=>sum+(s.pnl_amt||0),0);
@@ -2926,7 +2963,7 @@ function renderTop25() {
       <td class="${wrCls}">${histWR}</td>
       <td class="c-teal">${kStr}</td>
       <td class="${s.ret_250>0?'c-bull':'c-bear'}">${retStr}</td>
-      <td>${zdLiveMode?`<button class="${s.signal.startsWith('B')?'ob-buy':'ob-sell'}" onclick="showOrderModal('${s.symbol}','${s.signal.startsWith('B')?'BUY':'SELL'}',${s.cmp},${s.tp},${s.sl},1)">${s.signal.startsWith('B')?'▲ BUY':'▼ SELL'}</button>`:'—'}</td>
+      <td><button class="${s.signal.startsWith('B')?'ob-buy':'ob-sell'}" onclick="showOrderModal('${s.symbol}','${s.signal.startsWith('B')?'BUY':'SELL'}',${s.cmp},${s.tp},${s.sl},1)">${s.signal.startsWith('B')?'▲ BUY':'▼ SELL'}</button></td>
     </tr>`;
   };
   document.getElementById('top25BuyBody').innerHTML=buys.length?buys.map(row).join(''):`<tr><td colspan="17" class="empty">No buy signals today</td></tr>`;
@@ -3019,7 +3056,7 @@ function applyFilters() {
       <td>${s.learnedWR?s.learnedWR+'%':'—'}</td>
       <td class="${s.mb_score>60?'c-amb':'c-dim'}">${s.mb_score||0}</td>
       <td>${earn}</td>
-      <td>${zdLiveMode?`<button class="${s.signal.startsWith('B')?'ob-buy':'ob-sell'}" onclick="showOrderModal('${s.symbol}','${s.signal.startsWith('B')?'BUY':'SELL'}',${s.cmp},${s.tp},${s.sl},1)">${s.signal.startsWith('B')?'▲ BUY':'▼ SELL'}</button>`:'—'}</td>
+      <td><button class="${s.signal.startsWith('B')?'ob-buy':'ob-sell'}" onclick="showOrderModal('${s.symbol}','${s.signal.startsWith('B')?'BUY':'SELL'}',${s.cmp},${s.tp},${s.sl},1)">${s.signal.startsWith('B')?'▲ BUY':'▼ SELL'}</button></td>
     </tr>`;
   }).join('')||(sigFiltered.length===0?'<tr><td colspan="18" class="empty">No signals match filters</td></tr>':'');
 }
@@ -3061,23 +3098,36 @@ function renderPFCards() {
     const pnlClass=pf.totalPnlPct>=0?'c-bull':'c-bear';
     const pfClass=pf.type==='buy'?'pf-buy':'pf-sell';
     const rows=pf.stocks.map(s=>{
+      const entryPx=s.trigger_price||s.cmp;
+      const livePx=s.current_price||s.cmp;
       const sp=s.pnl_pct||0;
       const sc=sp>0?'c-bull':sp<0?'c-bear':'c-dim';
-      const stBadge=s.status==='TP'?'<span class="b b-bull">TP</span>':s.status==='SL'?'<span class="b b-bear">SL</span>':'<span class="b b-open">OPEN</span>';
-      var _pa=s.regime_alignment||'neutral';var _pb=_pa==='aligned'?'<span class="b" style="background:rgba(5,150,105,.15);color:var(--bull);border-color:rgba(5,150,105,.3);font-size:7px">WITH</span> ':_pa==='contrarian'?'<span class="b" style="background:rgba(220,38,38,.12);color:var(--bear);border-color:rgba(220,38,38,.3);font-size:7px">CONTRA</span> ':_pa==='partial'?'<span class="b" style="background:rgba(245,158,11,.12);color:var(--amber);border-color:rgba(217,119,6,.3);font-size:7px">PART</span> ':'';
-      const trigPx=s.trigger_price||s.cmp;
-      const livePx=s.current_price||s.cmp;
+      const tpslBadge=s.status==='TP'
+        ?'<span class="b b-bull" style="font-size:7px">TP✓</span>'
+        :s.status==='SL'
+        ?'<span class="b b-bear" style="font-size:7px">SL✗</span>'
+        :'<span class="b b-open" style="font-size:7px">OPEN</span>';
+      const drift=entryPx>0?((livePx-entryPx)/entryPx*100):0;
+      const driftStr=`<span class="${drift>=0?'c-bull':'c-bear'}" style="font-size:7px">${drift>=0?'+':''}${drift.toFixed(1)}%</span>`;
+      var _pa=s.regime_alignment||'neutral';
+      var _pb=_pa==='aligned'?'<span class="b" style="background:rgba(5,150,105,.15);color:var(--bull);border-color:rgba(5,150,105,.3);font-size:7px">WITH</span> '
+        :_pa==='contrarian'?'<span class="b" style="background:rgba(220,38,38,.12);color:var(--bear);border-color:rgba(220,38,38,.3);font-size:7px">CONTRA</span> '
+        :_pa==='partial'?'<span class="b" style="background:rgba(245,158,11,.12);color:var(--amber);border-color:rgba(217,119,6,.3);font-size:7px">PART</span> ':'';
       const entryD=s.entry_date||pf.createdDate||'—';
       const entryDShort=entryD!=='—'?entryD.slice(5).replace('-','/'):'—';
-      return`<tr><td>${_pb}${s.symbol}</td><td>${s.sector.substring(0,12)}</td>
+      return`<tr>
+        <td>${_pb}${s.symbol}</td>
+        <td>${s.sector.substring(0,12)}</td>
         <td>${sigBadge(s.signal)}</td>
         <td class="c-dim" style="font-size:8px">${entryDShort}</td>
-        <td class="c-dim">₹${trigPx.toFixed(1)}</td>
-        <td>₹${livePx.toFixed(1)}</td>
-        <td class="${sc}">${sp>0?'+':''}${sp}%</td>
-        <td class="${sc}">₹${s.pnl_amt||0}</td>
-        <td>${stBadge}</td>
-        <td>${zdLiveMode?`<button class="${pf.type==='buy'?'ob-buy':'ob-sell'}" style="margin-bottom:2px" onclick="showOrderModal('${s.symbol}','${pf.type==='buy'?'BUY':'SELL'}',${livePx},${s.tp},${s.sl},${s.qty||1})">Enter</button> <button class="${pf.type==='buy'?'ob-sell':'ob-buy'}" onclick="showOrderModal('${s.symbol}','${pf.type==='buy'?'SELL':'BUY'}',${livePx},${s.sl},${s.tp},${s.qty||1})">Exit</button>`:'—'}</td></tr>`;
+        <td class="c-dim">₹${entryPx.toFixed(1)}</td>
+        <td>₹${livePx.toFixed(1)} ${driftStr}</td>
+        <td class="${sc}"><strong>${sp>=0?'+':''}${sp}%</strong></td>
+        <td class="${sc}">₹${(s.pnl_amt||0).toLocaleString('en-IN')}</td>
+        <td class="c-dim" style="font-size:8px">T:₹${(s.tp||0).toFixed(1)} S:₹${(s.sl||0).toFixed(1)}</td>
+        <td>${tpslBadge}</td>
+        <td><button class="${pf.type==='buy'?'ob-buy':'ob-sell'}" style="margin-bottom:2px" onclick="showOrderModal('${s.symbol}','${pf.type==='buy'?'BUY':'SELL'}',${livePx},${s.tp},${s.sl},${s.qty||1})">Enter</button> <button class="${pf.type==='buy'?'ob-sell':'ob-buy'}" onclick="showOrderModal('${s.symbol}','${pf.type==='buy'?'SELL':'BUY'}',${livePx},${s.sl},${s.tp},${s.qty||1})">Exit</button></td>
+      </tr>`;
     }).join('');
     return`<div class="pf-card ${pfClass}">
       <div class="pf-hdr">
@@ -3098,7 +3148,7 @@ function renderPFCards() {
           <div class="pf-stat"><label>Capital</label><span>₹${(pf.capital||0).toLocaleString('en-IN')}</span></div>
         </div>
         <div class="tw" style="max-height:220px;overflow-y:auto">
-          <table><thead><tr><th>Symbol</th><th>Sector</th><th>Signal</th><th>Entry Date</th><th>Entry ₹</th><th>CMP ₹</th><th>P&L%</th><th>P&L₹</th><th>Status</th><th>Order</th></tr></thead>
+          <table><thead><tr><th>Symbol</th><th>Sector</th><th>Signal</th><th>Entry Date</th><th>Entry ₹</th><th>CMP ₹</th><th>Return %</th><th>P&L ₹</th><th>TP / SL</th><th>Status</th><th>Order</th></tr></thead>
           <tbody>${rows}</tbody></table>
         </div>
       </div>
@@ -3417,7 +3467,7 @@ function renderMB() { // Multibagger
     const sig=allSignals.find(s=>s.symbol===m.sym);
     const lStats=getMBLedgerStats(m.sym);
     const cmp=sig?sig.cmp:0, tp=sig?sig.tp:0, sl=sig?sig.sl:0;
-    const orderBtn=zdLiveMode&&sig?`<button class="${sig.signal.startsWith('B')?'ob-buy':'ob-sell'}" onclick="showOrderModal('${m.sym}','${sig.signal.startsWith('B')?'BUY':'SELL'}',${cmp},${tp},${sl},1)">${sig.signal.startsWith('B')?'▲ BUY':'▼ SELL'}</button>`:'';
+    const orderBtn=sig?`<button class="${sig.signal.startsWith('B')?'ob-buy':'ob-sell'}" onclick="showOrderModal('${m.sym}','${sig.signal.startsWith('B')?'BUY':'SELL'}',${cmp},${tp},${sl},1)">${sig.signal.startsWith('B')?'▲ BUY':'▼ SELL'}</button>`:'';
     return`<div class="card" style="${gold}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
         <strong>${m.sym}</strong>${i<3?'<span class="b b-mb">★ TOP</span>':''}
@@ -3719,26 +3769,28 @@ let _omDirection='BUY';
 function showOrderModal(symbol, direction, cmp, tp, sl, qty){
   if(!zdLiveMode){toast('Connect Zerodha Kite first','err');return}
   _omDirection=direction;
-  // Kelly qty suggestion based on ₹5L capital
-  const kd = kellyData[symbol];
-  const kellyQty = kd && kd.kelly_pct>0
-    ? Math.max(1, Math.floor((TRADING_CAPITAL * kd.kelly_pct/100) / cmp))
-    : (qty||1);
-  const kellyNote = kd && kd.kelly_pct>0
-    ? `Kelly ${kd.kelly_pct}% of ₹5L = ₹${Math.round(TRADING_CAPITAL*kd.kelly_pct/100).toLocaleString('en-IN')}`
-    : 'No Kelly data yet — using qty 1';
+  // Store CMP globally for investment recalc
+  window._omCmp=cmp;
+  // Default investment ₹35,000; auto-calc qty
+  const defaultInvest=35000;
+  const autoQty=cmp>0?Math.max(1,Math.floor(defaultInvest/cmp)):(qty||1);
+  // Kelly note
+  const kd=kellyData[symbol];
+  const kellyNote=kd&&kd.kelly_pct>0
+    ?`Kelly ${kd.kelly_pct}% of ₹5L = ₹${Math.round(TRADING_CAPITAL*kd.kelly_pct/100).toLocaleString('en-IN')}`
+    :'No Kelly data yet';
 
   document.getElementById('omSymbol').textContent=symbol;
   document.getElementById('omCmp').textContent='₹'+cmp.toFixed(2);
   document.getElementById('omTp').textContent=tp?'₹'+tp.toFixed(2):'—';
   document.getElementById('omSl').textContent=sl?'₹'+sl.toFixed(2):'—';
-  document.getElementById('omQty').value=kellyQty;
+  document.getElementById('omInvest').value=defaultInvest;
+  document.getElementById('omQty').value=autoQty;
   document.getElementById('omPrice').value=cmp.toFixed(2);
   document.getElementById('omOrderType').value='MARKET';
   document.getElementById('omProduct').value='CNC';
   document.getElementById('omPriceWrap').style.opacity='0.3';
   document.getElementById('omPrice').disabled=true;
-  // Show Kelly note
   const kellyEl=document.getElementById('omKellyNote');
   if(kellyEl) kellyEl.textContent=kellyNote;
   const badge=document.getElementById('omDirBadge');
@@ -3773,6 +3825,26 @@ function updateOmTotal(){
       el.textContent = '—';
     }
   }
+}
+
+function calcQtyFromInvestment(){
+  const invest=parseFloat(document.getElementById('omInvest').value)||0;
+  const cmp=window._omCmp||0;
+  if(cmp>0&&invest>0){
+    const qty=Math.max(1,Math.floor(invest/cmp));
+    document.getElementById('omQty').value=qty;
+    const actual=(qty*cmp);
+    const note=document.getElementById('omInvestNote');
+    if(note) note.textContent=`${qty} shares × ₹${cmp.toFixed(2)} = ₹${actual.toLocaleString('en-IN',{maximumFractionDigits:0})} (leftover ₹${Math.round(invest-actual).toLocaleString('en-IN')})`;
+  }
+  updateOmTotal();
+}
+
+function adjustInvestment(delta){
+  const inp=document.getElementById('omInvest');
+  const cur=parseFloat(inp.value)||35000;
+  inp.value=Math.max(1000,cur+delta);
+  calcQtyFromInvestment();
 }
 
 function omTogglePrice(){
@@ -4329,7 +4401,7 @@ function updateEntryTracker(niftyVerdict, tiredScore) {
       sameDay='TBD';
     }
 
-    const orderBtn=zdLiveMode?`<button class="ob-buy" onclick="showOrderModal('${s.symbol}','BUY',${cmp},${tp},${sl},1)">▲ BUY</button>`:'—';
+    const orderBtn=`<button class="ob-buy" onclick="showOrderModal('${s.symbol}','BUY',${cmp},${tp},${sl},1)">▲ BUY</button>`;
     return`<tr class="${sameDay==='Skip'?'ro-bear':''}">
       <td class="c-dim">${i+1}</td>
       <td><strong>${s.symbol}</strong></td>
