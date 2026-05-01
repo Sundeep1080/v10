@@ -358,7 +358,7 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
         <div class="om-label">Order Type</div><br>
         <select class="om-sel" id="omOrderType" style="width:100%" onchange="omTogglePrice()">
           <option value="MARKET">MARKET</option>
-          <option value="LIMIT">LIMIT</option>
+          <option value="LIMIT" selected>LIMIT</option>
           <option value="SL-M">SL-M</option>
         </select>
       </div>
@@ -3802,10 +3802,10 @@ function showOrderModal(symbol, direction, cmp, tp, sl, qty){
   document.getElementById('omInvest').value=defaultInvest;
   document.getElementById('omQty').value=autoQty;
   document.getElementById('omPrice').value=cmp.toFixed(2);
-  document.getElementById('omOrderType').value='MARKET';
+  document.getElementById('omOrderType').value='LIMIT';
   document.getElementById('omProduct').value='CNC';
-  document.getElementById('omPriceWrap').style.opacity='0.3';
-  document.getElementById('omPrice').disabled=true;
+  document.getElementById('omPriceWrap').style.opacity='1';
+  document.getElementById('omPrice').disabled=false;
   const kellyEl=document.getElementById('omKellyNote');
   if(kellyEl) kellyEl.textContent=kellyNote;
   const badge=document.getElementById('omDirBadge');
