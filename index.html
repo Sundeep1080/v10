@@ -447,7 +447,7 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
           <button class="btn btn-d" style="font-size:8px;padding:2px 7px" onclick="sortTop25('buy','rr')">R:R</button>
         </div>
       </div>
-      <div class="tw"><table id="top25BuyTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25BuyZone">250d Zone</th><th>HVP</th><th>CMP</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25BuyBody"></tbody></table></div>
+      <div class="tw"><table id="top25BuyTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25BuyZone">250d Zone</th><th>HVP</th><th>Trigger ₹</th><th>CMP ₹</th><th>SMI</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25BuyBody"></tbody></table></div>
     </div>
     <div class="top25-panel">
       <div class="top25-hdr bear">
@@ -458,7 +458,7 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
           <button class="btn btn-d" style="font-size:8px;padding:2px 7px" onclick="sortTop25('sell','rr')">R:R</button>
         </div>
       </div>
-      <div class="tw"><table id="top25SellTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25SellZone">250d Zone</th><th>HVP</th><th>CMP</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25SellBody"></tbody></table></div>
+      <div class="tw"><table id="top25SellTbl"><thead><tr><th>#</th><th>Symbol</th><th>Sig</th><th>Score</th><th>Concord</th><th id="thTop25SellZone">250d Zone</th><th>HVP</th><th>Trigger ₹</th><th>CMP ₹</th><th>SMI</th><th>TP +2.0%</th><th>SL -3.5%</th><th>R:R</th><th>HistWR%</th><th>Kelly%</th><th>250d</th><th>Order</th></tr></thead><tbody id="top25SellBody"></tbody></table></div>
     </div>
   </div>
   <div class="insights-strip" id="insightStrip" style="display:none"></div>
@@ -525,7 +525,8 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
         <input class="fi" id="pfMinScore" value="55" style="width:55px" title="Regime auto-enforces minimum. Breakeven WR=63.6% with TP=2% SL=3.5%">
         <button class="btn btn-a" onclick="createDailyPortfolios()"><i class="fas fa-plus"></i> Create Today's Portfolios</button>
         <button class="btn btn-g" onclick="updateDPFPnL()"><i class="fas fa-sync"></i> Update P&L</button>
-        <button class="btn btn-r" onclick="dissolvePortfolios()"><i class="fas fa-check-circle"></i> Dissolve Expired</button>
+        <button class="btn btn-r" onclick="dissolvePortfolios()"><i class="fas fa-check-circle"></i> Close Expired</button>
+        <button class="btn btn-d" onclick="exportPortfolioCSV()" title="Export all portfolio stock names to CSV"><i class="fas fa-download"></i> Export Symbols CSV</button>
       </div>
     </div>
   </div>
@@ -538,7 +539,7 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
     <div class="ct"><i class="fas fa-archive"></i> Portfolio Archive
       <button class="btn btn-d" style="font-size:8px;padding:2px 7px;margin-left:auto" onclick="exportPFArchive()"><i class="fas fa-download"></i> Export CSV</button>
     </div>
-    <div class="tw"><table><thead><tr><th>Day</th><th>Type</th><th>Created</th><th>Dissolve</th><th>Stocks</th><th>Total P&L%</th><th>Total P&L₹</th><th>WR</th><th>Avg Score</th><th>Best</th><th>Worst</th></tr></thead><tbody id="pfArchiveBody"></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Day</th><th>Type</th><th>Created</th><th>Closed Date</th><th>Stocks</th><th>Total P&L%</th><th>Total P&L₹</th><th>WR</th><th>Avg Score</th><th>Best Performer</th><th>Worst Performer</th></tr></thead><tbody id="pfArchiveBody"></tbody></table></div>
   </div>
 </div>
 
@@ -560,6 +561,7 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
     <button class="i-tab" onclick="switchIntel('ledger')">Ledger</button>
     <button class="i-tab" onclick="switchIntel('retcorr')">Return Corr</button>
     <button class="i-tab" onclick="switchIntel('slDash')" style="background:rgba(217,119,6,.15);color:var(--amber)">🧠 Learning Dashboard</button>
+    <button class="i-tab" onclick="switchIntel('dailymovers')" style="background:rgba(13,148,136,.12);color:var(--teal)">📈 Daily Movers</button>
   </div>
 
   <!-- M6 -->
@@ -735,6 +737,41 @@ tr.earn td:first-child{border-left:3px solid var(--pink)}
   <div class="i-panel card" id="intel-slDash" style="border-radius:0 0 var(--r-lg) var(--r-lg)">
     <div class="ct" style="background:rgba(217,119,6,.12);border-bottom:1px solid rgba(217,119,6,.2)"><i class="fas fa-brain"></i> 🧠 Self-Learning Dashboard — What Has NANDI Learnt?</div>
     <div id="slDashContent" style="padding:4px 0"></div>
+  </div>
+
+  <!-- DAILY MOVERS -->
+  <div class="i-panel card" id="intel-dailymovers" style="border-radius:0 0 var(--r-lg) var(--r-lg)">
+    <div class="ct teal"><i class="fas fa-fire"></i> Daily Momentum Movers — Stocks Consistently Moving 2%+ Per Day</div>
+    <div style="font-family:var(--mono);font-size:9px;color:var(--text2);margin-bottom:10px;padding:6px 10px;background:var(--teal-g);border-radius:4px;border:1px solid rgba(13,148,136,.2)">
+      Shows top 50 stocks with strongest recent daily momentum across last 3–5 sessions. No signal required — pure price action. Use this to cross-check triggers in TradingView.
+    </div>
+    <div class="filter-bar" style="padding:4px 0;margin-bottom:8px">
+      <select class="fi" id="dmLookback" onchange="renderDailyMovers()">
+        <option value="3">Last 3 days</option>
+        <option value="5" selected>Last 5 days</option>
+        <option value="10">Last 10 days</option>
+      </select>
+      <select class="fi" id="dmDir" onchange="renderDailyMovers()">
+        <option value="both">Both directions</option>
+        <option value="bull">Bullish only (+)</option>
+        <option value="bear">Bearish only (−)</option>
+      </select>
+      <select class="fi" id="dmMinPct" onchange="renderDailyMovers()">
+        <option value="1">Min 1% avg/day</option>
+        <option value="2" selected>Min 2% avg/day</option>
+        <option value="3">Min 3% avg/day</option>
+      </select>
+      <button class="btn btn-d" onclick="exportDailyMoversCSV()"><i class="fas fa-download"></i> Export CSV</button>
+    </div>
+    <div class="tw"><table id="dmTable">
+      <thead><tr>
+        <th>#</th><th>Symbol</th><th>Sector</th>
+        <th>Prev Close</th><th>CMP / Latest</th><th>Today %</th>
+        <th>Avg %/day</th><th>Consistency</th><th>Days +2%</th>
+        <th>Signal</th><th>SMI</th><th>In Portfolio?</th>
+      </tr></thead>
+      <tbody id="dmBody"><tr><td colspan="12" class="empty">Load CSV data to see daily movers</td></tr></tbody>
+    </table></div>
   </div>
 
 </div><!-- end intel page -->
@@ -1741,6 +1778,9 @@ async function processAll(bySymbol) {
       cmp, tp, sl, rr, atr_entry:parseFloat(atr.toFixed(2)),
       tpsl_source:tpSlSource,
       entry_date:rows[n].date,
+      trigger_price:cmp,
+      smi_last:parseFloat((smi[n]||0).toFixed(1)), smi_sig_last:parseFloat((smiSig[n]||0).toFixed(1)),
+      prev_close:closes.length>=2?closes[n-1]:null,
       kelly_pct:kelly, learnedWR, seqWR, prev_signal:prevSig,
       nsei_corr:nseiCorr, mb_score:mbSc,
       earn_prox:earnProx, best_indicator:globalBestInd,
@@ -2194,7 +2234,8 @@ function createDailyPortfolios() {
     const sizedStocks=kellySize(buyList.map(s=>({
       symbol:s.symbol,sector:s.sector,signal:s.signal,score:s.score,
       cmp:s.cmp,tp:s.tp,sl:s.sl,rr:s.rr,kelly_pct:s.kelly_pct,
-      band_zone:s.band_zone,hvp:s.hvp,
+      band_zone:s.band_zone,hvp:s.hvp,trigger_price:s.trigger_price||s.cmp,
+      regime_alignment:s.regime_alignment,
       current_price:s.cmp,pnl_pct:0,pnl_amt:0,status:'open'
     })), capital);
     const stocks=sizedStocks.map(s=>Object.assign({},s,{qty:Math.max(1,Math.floor(s.position_size/s.cmp))}));
@@ -2213,7 +2254,8 @@ function createDailyPortfolios() {
     const sizedStocks=kellySize(sellList.map(s=>({
       symbol:s.symbol,sector:s.sector,signal:s.signal,score:s.score,
       cmp:s.cmp,tp:s.tp,sl:s.sl,rr:s.rr,kelly_pct:s.kelly_pct,
-      band_zone:s.band_zone,hvp:s.hvp,
+      band_zone:s.band_zone,hvp:s.hvp,trigger_price:s.trigger_price||s.cmp,
+      regime_alignment:s.regime_alignment,
       current_price:s.cmp,pnl_pct:0,pnl_amt:0,status:'open',
       spread_type:s.signal==='S1-MOM'||s.signal==='S3'?'bear_put':'bear_call'
     })), capital);
@@ -2317,6 +2359,13 @@ function dissolvePortfolios() {
   dailyPortfolios.filter(p=>p.status==='active').forEach(pf=>{
     if(pf.dissolveDate<=today){
       pf.status='dissolved';pf.dissolvedDate=today;
+      // Recompute final stats before archiving so archive always reflects latest P&L
+      pf.winCount=pf.stocks.filter(s=>(s.pnl_pct||0)>0).length;
+      pf.lossCount=pf.stocks.filter(s=>(s.pnl_pct||0)<0).length;
+      const tot=pf.stocks.reduce((sum,s)=>sum+(s.pnl_amt||0),0);
+      pf.totalPnl=tot;
+      pf.totalPnlPct=pf.capital?parseFloat((tot/pf.capital*100).toFixed(2)):0;
+      pf.avgScore=pf.stocks.length?Math.round(pf.stocks.reduce((s,x)=>s+(x.score||0),0)/pf.stocks.length):0;
       updateSelfLearning(pf);
       dpfArchive.push({...pf});
       dissolved++;
@@ -2693,7 +2742,7 @@ function pfLoad(){
     if(a)dpfArchive=JSON.parse(a);
   }catch(e){dailyPortfolios=[];dpfArchive=[];}
   idbGet(PF_KEY).then(d=>{if(d&&Array.isArray(d)&&d.length>dailyPortfolios.length){dailyPortfolios=d;renderPage2();}});
-  idbGet(PF_ARCH_KEY).then(d=>{if(d&&Array.isArray(d))dpfArchive=d;});
+  idbGet(PF_ARCH_KEY).then(d=>{if(d&&Array.isArray(d)){dpfArchive=d;renderPFArchive();}});
 }
 
 // Old localStorage functions replaced by IDB versions above — keeping pfSave here
@@ -2822,15 +2871,28 @@ function renderTop25() {
     const wrCls=s.wr_lookup>=75?'c-bull':s.wr_lookup>=68?'c-amb':'c-bear';
     const wkCls2=s.weeklyAligned?'b-bull':s.weeklyTrend==='bear'?'b-bear':'b-dim';
     const concBadge2=`<span class="b ${wkCls2}">${(s.weeklyTrend||'neut').toUpperCase()}</span>`;
+    // Stale check: barsAgo > 1 means trigger was more than 1 day ago
+    const isStale=s.barsAgo>1;
+    const staleBadge=isStale?`<span class="b b-bear" title="Signal fired ${s.barsAgo} bars ago — verify price still valid" style="font-size:7px">⚠ ${s.barsAgo}d old</span> `:'';
+    // SMI direction badge
+    const smiVal=s.smi_last||0;
+    const smiCls=s.signal.startsWith('B')?(smiVal>0?'c-bull':smiVal>-20?'c-amb':'c-bear'):(smiVal<0?'c-bull':smiVal<20?'c-amb':'c-bear');
+    const smiStr=`<span class="${smiCls}" title="SMI: ${smiVal}">${smiVal}</span>`;
+    // CMP drift from trigger
+    const trigPx=s.trigger_price||s.cmp;
+    const drift=trigPx>0?((s.cmp-trigPx)/trigPx*100):0;
+    const driftStr=drift!==0?` <span class="${drift>0?'c-bull':'c-bear'}" style="font-size:7px">${drift>0?'+':''}${drift.toFixed(1)}%</span>`:'';
     return`<tr class="${sigClass(s.signal)}">
       <td class="c-dim">${idealFlag}${i+1}</td>
-      <td>${alignBadge}${goodFlag}<strong>${s.symbol}</strong></td>
+      <td>${staleBadge}${alignBadge}${goodFlag}<strong>${s.symbol}</strong></td>
       <td>${sigBadge(s.signal)}</td>
       <td><strong class="${scoreCls}">${s.score}</strong></td>
       <td>${concBadge2}</td>
       <td>${bz}</td>
       <td><span class="${s.hvp>60?'c-bull':s.hvp<35?'c-bear':'c-amb'}">${s.hvp}</span></td>
-      <td>₹${s.cmp.toFixed(1)}</td>
+      <td class="c-dim">₹${trigPx.toFixed(1)}</td>
+      <td>₹${s.cmp.toFixed(1)}${driftStr}</td>
+      <td>${smiStr}</td>
       <td class="c-bull">₹${s.tp.toFixed(1)}</td>
       <td class="c-bear">₹${s.sl.toFixed(1)}</td>
       <td class="${s.rr>=2?'c-bull':s.rr>=1?'c-amb':'c-bear'}">${s.rr}</td>
@@ -2840,8 +2902,19 @@ function renderTop25() {
       <td>${zdLiveMode?`<button class="${s.signal.startsWith('B')?'ob-buy':'ob-sell'}" onclick="showOrderModal('${s.symbol}','${s.signal.startsWith('B')?'BUY':'SELL'}',${s.cmp},${s.tp},${s.sl},1)">${s.signal.startsWith('B')?'▲ BUY':'▼ SELL'}</button>`:'—'}</td>
     </tr>`;
   };
-  document.getElementById('top25BuyBody').innerHTML=buys.length?buys.map(row).join(''):`<tr><td colspan="14" class="empty">No buy signals today</td></tr>`;
-  document.getElementById('top25SellBody').innerHTML=sells.length?sells.map(row).join(''):`<tr><td colspan="14" class="empty">No sell signals today</td></tr>`;
+  document.getElementById('top25BuyBody').innerHTML=buys.length?buys.map(row).join(''):`<tr><td colspan="17" class="empty">No buy signals today</td></tr>`;
+  document.getElementById('top25SellBody').innerHTML=sells.length?sells.map(row).join(''):`<tr><td colspan="17" class="empty">No sell signals today</td></tr>`;
+  // Attach quick-CSV export buttons if not already present
+  ['Buy','Sell'].forEach(t=>{
+    const hdr=document.querySelector(`.top25-hdr.${t.toLowerCase()}`);
+    if(hdr&&!hdr.querySelector('.top25-csv-btn')){
+      const btn=document.createElement('button');
+      btn.className='btn btn-d top25-csv-btn';btn.style.cssText='font-size:8px;padding:2px 7px';
+      btn.innerHTML='<i class="fas fa-download"></i> CSV';
+      btn.onclick=()=>exportTop25CSV(t.toLowerCase());
+      hdr.appendChild(btn);
+    }
+  });
 }
 function sortTop25(type,col){if(type==='buy')top25SortBuy=col;else top25SortSell=col;renderTop25()}
 
@@ -2976,13 +3049,16 @@ function renderPFCards() {
       const sc=sp>0?'c-bull':sp<0?'c-bear':'c-dim';
       const stBadge=s.status==='TP'?'<span class="b b-bull">TP</span>':s.status==='SL'?'<span class="b b-bear">SL</span>':'<span class="b b-open">OPEN</span>';
       var _pa=s.regime_alignment||'neutral';var _pb=_pa==='aligned'?'<span class="b" style="background:rgba(5,150,105,.15);color:var(--bull);border-color:rgba(5,150,105,.3);font-size:7px">WITH</span> ':_pa==='contrarian'?'<span class="b" style="background:rgba(220,38,38,.12);color:var(--bear);border-color:rgba(220,38,38,.3);font-size:7px">CONTRA</span> ':_pa==='partial'?'<span class="b" style="background:rgba(245,158,11,.12);color:var(--amber);border-color:rgba(217,119,6,.3);font-size:7px">PART</span> ':'';
+      const trigPx=s.trigger_price||s.cmp;
+      const livePx=s.current_price||s.cmp;
       return`<tr><td>${_pb}${s.symbol}</td><td>${s.sector.substring(0,12)}</td>
         <td>${sigBadge(s.signal)}</td>
-        <td>₹${s.current_price?s.current_price.toFixed(1):s.cmp.toFixed(1)}</td>
+        <td class="c-dim">₹${trigPx.toFixed(1)}</td>
+        <td>₹${livePx.toFixed(1)}</td>
         <td class="${sc}">${sp>0?'+':''}${sp}%</td>
         <td class="${sc}">₹${s.pnl_amt||0}</td>
         <td>${stBadge}</td>
-        <td>${zdLiveMode?`<button class="${pf.type==='buy'?'ob-buy':'ob-sell'}" style="margin-bottom:2px" onclick="showOrderModal('${s.symbol}','${pf.type==='buy'?'BUY':'SELL'}',${s.current_price||s.cmp},${s.tp},${s.sl},${s.qty||1})">Enter</button> <button class="${pf.type==='buy'?'ob-sell':'ob-buy'}" onclick="showOrderModal('${s.symbol}','${pf.type==='buy'?'SELL':'BUY'}',${s.current_price||s.cmp},${s.sl},${s.tp},${s.qty||1})">Exit</button>`:'—'}</td></tr>`;
+        <td>${zdLiveMode?`<button class="${pf.type==='buy'?'ob-buy':'ob-sell'}" style="margin-bottom:2px" onclick="showOrderModal('${s.symbol}','${pf.type==='buy'?'BUY':'SELL'}',${livePx},${s.tp},${s.sl},${s.qty||1})">Enter</button> <button class="${pf.type==='buy'?'ob-sell':'ob-buy'}" onclick="showOrderModal('${s.symbol}','${pf.type==='buy'?'SELL':'BUY'}',${livePx},${s.sl},${s.tp},${s.qty||1})">Exit</button>`:'—'}</td></tr>`;
     }).join('');
     return`<div class="pf-card ${pfClass}">
       <div class="pf-hdr">
@@ -3002,7 +3078,7 @@ function renderPFCards() {
           <div class="pf-stat"><label>Capital</label><span>₹${(pf.capital||0).toLocaleString('en-IN')}</span></div>
         </div>
         <div class="tw" style="max-height:220px;overflow-y:auto">
-          <table><thead><tr><th>Symbol</th><th>Sector</th><th>Signal</th><th>Price</th><th>P&L%</th><th>P&L₹</th><th>Status</th><th>Order</th></tr></thead>
+          <table><thead><tr><th>Symbol</th><th>Sector</th><th>Signal</th><th>Trigger ₹</th><th>CMP ₹</th><th>P&L%</th><th>P&L₹</th><th>Status</th><th>Order</th></tr></thead>
           <tbody>${rows}</tbody></table>
         </div>
       </div>
@@ -3041,22 +3117,25 @@ function renderPFArchive() {
   if(!tb)return;
   tb.innerHTML=dpfArchive.slice().reverse().map(pf=>{
     const pnlClass=pf.totalPnlPct>=0?'c-bull':'c-bear';
-    const best=pf.stocks&&pf.stocks.length?pf.stocks.reduce((m,s)=>s.pnl_pct>m.pnl_pct?s:m,pf.stocks[0]):null;
-    const worst=pf.stocks&&pf.stocks.length?pf.stocks.reduce((m,s)=>s.pnl_pct<m.pnl_pct?s:m,pf.stocks[0]):null;
+    const best=pf.stocks&&pf.stocks.length?pf.stocks.reduce((m,s)=>(s.pnl_pct||0)>(m.pnl_pct||0)?s:m,pf.stocks[0]):null;
+    const worst=pf.stocks&&pf.stocks.length?pf.stocks.reduce((m,s)=>(s.pnl_pct||0)<(m.pnl_pct||0)?s:m,pf.stocks[0]):null;
+    const typeLabel=pf.type==='buy'?'<span class="b b-bull">BUY→SOLD</span>':'<span class="b b-bear">SELL→COVERED</span>';
+    const bestStr=best?(best.pnl_pct||0)>=0?`${best.symbol} <span class="c-bull">+${(best.pnl_pct||0).toFixed(2)}%</span>`:`${best.symbol} <span class="c-dim">${(best.pnl_pct||0).toFixed(2)}%</span>`:'—';
+    const worstStr=worst?`${worst.symbol} <span class="c-bear">${(worst.pnl_pct||0).toFixed(2)}%</span>`:'—';
     return`<tr>
       <td>${pf.dayName}</td>
-      <td>${pf.type.toUpperCase()}</td>
+      <td>${typeLabel}</td>
       <td>${pf.createdDate}</td>
-      <td>${pf.dissolveDate}</td>
+      <td>${pf.dissolvedDate||pf.dissolveDate}</td>
       <td>${pf.stocks?pf.stocks.length:0}</td>
-      <td class="${pnlClass}">${pf.totalPnlPct>=0?'+':''}${pf.totalPnlPct||0}%</td>
+      <td class="${pnlClass}">${pf.totalPnlPct>=0?'+':''}${(pf.totalPnlPct||0).toFixed(2)}%</td>
       <td class="${pnlClass}">₹${(pf.totalPnl||0).toLocaleString('en-IN')}</td>
-      <td>${pf.winCount||0}W/${pf.lossCount||0}L</td>
+      <td>${pf.winCount||0}W / ${pf.lossCount||0}L</td>
       <td class="c-amb">${pf.avgScore||0}</td>
-      <td class="c-bull">${best?best.symbol+' +'+best.pnl_pct+'%':'—'}</td>
-      <td class="c-bear">${worst?worst.symbol+' '+worst.pnl_pct+'%':'—'}</td>
+      <td>${bestStr}</td>
+      <td>${worstStr}</td>
     </tr>`;
-  }).join('')||'<tr><td colspan="11" class="empty">No archived portfolios yet</td></tr>';
+  }).join('')||'<tr><td colspan="11" class="empty">No closed portfolios yet — dissolve active ones when due</td></tr>';
 }
 function exportPFArchive(){
   const rows=dpfArchive.map(p=>[p.dayName,p.type,p.createdDate,p.dissolveDate,p.stocks?p.stocks.length:0,p.totalPnlPct||0,p.totalPnl||0,`${p.winCount||0}W/${p.lossCount||0}L`,p.avgScore||0].join(','));
@@ -3484,7 +3563,7 @@ function switchIntel(name){
 }
 function renderIntelActive(){const active=document.querySelector('.i-panel.active');if(active)renderIntelTab(active.id.replace('intel-',''))}
 function renderIntelTab(name){
-  const map={m6:renderM6,m1:renderM1,m4:renderM4,m2:renderM2,m3:renderM3,m5:renderM5,m7:renderM7,tpsl:renderTPSL,mb:renderMB,sectors:renderSectors,ledger:renderLedger,retcorr:renderRetCorr, wrref:function(){},regimexperf:function(){renderRegimeCrossPerf();},slDash:renderSLDash};
+  const map={m6:renderM6,m1:renderM1,m4:renderM4,m2:renderM2,m3:renderM3,m5:renderM5,m7:renderM7,tpsl:renderTPSL,mb:renderMB,sectors:renderSectors,ledger:renderLedger,retcorr:renderRetCorr, wrref:function(){},regimexperf:function(){renderRegimeCrossPerf();},slDash:renderSLDash,dailymovers:renderDailyMovers};
   if(map[name])map[name]();
 }
 
@@ -4409,6 +4488,177 @@ function renderRegimeCrossPerf(){
   html+='<div style="margin-top:6px;color:var(--text2)">WITH MKT signals = highest overnight conviction. CONTRA signals = individual stock story — can still be profitable (this panel tracks your actual WR for each).</div>';
   html+='</div>';
   el.innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// POINT 4 — CSV EXPORTS: Top25 symbols + Portfolio symbols
+// ═══════════════════════════════════════════════════════════
+function exportTop25CSV(type) {
+  const thr=getRegimeThreshold();
+  const list=type==='buy'?selectTop25(allSignals,'buy'):selectTop25(allSignals,'sell');
+  if(!list.length){toast('No '+type+' signals to export','err');return}
+  const hdrs=['Symbol','Sector','Signal','Score','Zone','Trigger_Price','CMP','SMI','TP','SL','RR','HistWR%','Kelly%','BarsAgo','Stale','WeeklyTrend','Ret250%'];
+  const rows=list.map(s=>[
+    s.symbol,s.sector,s.signal,s.score,s.band_zone,
+    (s.trigger_price||s.cmp).toFixed(2),s.cmp.toFixed(2),
+    s.smi_last||0,s.tp,s.sl,s.rr,
+    s.wr_lookup||'',s.kelly_pct||'',
+    s.barsAgo||0,s.barsAgo>1?'STALE':'FRESH',
+    s.weeklyTrend||'',s.ret_250||''
+  ].join(','));
+  const blob=new Blob([[hdrs.join(','),...rows].join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`nandi_top50_${type}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  toast(`Top 50 ${type} CSV exported`,'ok');
+}
+
+function exportPortfolioCSV() {
+  const active=dailyPortfolios.filter(p=>p.status==='active');
+  if(!active.length){toast('No active portfolios','err');return}
+  const hdrs=['Portfolio','Symbol','Sector','Signal','Trigger_Price','CMP','TP','SL','RR','Score','Zone','P&L%','Status'];
+  const rows=[];
+  active.forEach(pf=>{
+    pf.stocks.forEach(s=>{
+      rows.push([
+        pf.type.toUpperCase()+'_'+pf.day,
+        s.symbol,s.sector,s.signal,
+        (s.trigger_price||s.cmp).toFixed(2),
+        (s.current_price||s.cmp).toFixed(2),
+        s.tp,s.sl,s.rr,s.score,s.band_zone||'',
+        s.pnl_pct||0,s.status||'open'
+      ].join(','));
+    });
+  });
+  const blob=new Blob([[hdrs.join(','),...rows].join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`nandi_portfolio_symbols_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  toast('Portfolio symbols CSV exported','ok');
+}
+
+// ═══════════════════════════════════════════════════════════
+// POINT 6b — DAILY MOVERS TAB
+// ═══════════════════════════════════════════════════════════
+function renderDailyMovers() {
+  const tb=document.getElementById('dmBody');
+  if(!tb)return;
+  if(!Object.keys(allStockData).length){
+    tb.innerHTML='<tr><td colspan="12" class="empty">Load CSV data first</td></tr>';return;
+  }
+  const lookback=parseInt((document.getElementById('dmLookback')||{value:'5'}).value)||5;
+  const dir=(document.getElementById('dmDir')||{value:'both'}).value||'both';
+  const minPct=parseFloat((document.getElementById('dmMinPct')||{value:'2'}).value)||2;
+
+  // Get active portfolio symbols for cross-reference
+  const pfBuySyms=new Set(),pfSellSyms=new Set();
+  dailyPortfolios.filter(p=>p.status==='active').forEach(pf=>{
+    pf.stocks.forEach(s=>pf.type==='buy'?pfBuySyms.add(s.symbol):pfSellSyms.add(s.symbol));
+  });
+  const top25BuySyms=new Set(selectTop25(allSignals,'buy').map(s=>s.symbol));
+  const top25SellSyms=new Set(selectTop25(allSignals,'sell').map(s=>s.symbol));
+
+  // Build movers list from allStockData
+  const movers=[];
+  Object.keys(allStockData).forEach(sym=>{
+    const info=allStockData[sym];
+    if(info.index==='MAJOR INDEX')return;
+    const rows=info.rows;
+    if(rows.length<lookback+1)return;
+    const n=rows.length-1;
+    // Daily returns for last `lookback` days
+    const dailyRets=[];
+    for(let i=n-lookback+1;i<=n;i++){
+      if(rows[i-1]&&rows[i]){
+        const ret=(rows[i].cl-rows[i-1].cl)/rows[i-1].cl*100;
+        dailyRets.push(ret);
+      }
+    }
+    if(!dailyRets.length)return;
+    const avgRet=dailyRets.reduce((a,b)=>a+b,0)/dailyRets.length;
+    const absPct=Math.abs(avgRet);
+    if(absPct<minPct)return;
+    if(dir==='bull'&&avgRet<0)return;
+    if(dir==='bear'&&avgRet>0)return;
+    // Count days above threshold
+    const daysAbove=dailyRets.filter(r=>Math.abs(r)>=minPct).length;
+    const consistency=Math.round(daysAbove/dailyRets.length*100);
+    // Prev close and latest close
+    const prevClose=rows[n-1].cl;
+    const latestClose=rows[n].cl;
+    const todayPct=(latestClose-prevClose)/prevClose*100;
+    // Signal for this stock (if any)
+    const sigObj=allSignals.find(s=>s.symbol===sym);
+    // SMI at latest bar
+    const closes=rows.map(r=>r.cl);
+    const highs=rows.map(r=>r.hi),lows=rows.map(r=>r.lo);
+    const {smi}=calcSMI(highs,lows,closes);
+    const smiNow=smi[n]!==null?parseFloat(smi[n].toFixed(1)):null;
+    // Portfolio membership
+    let pfStatus='—';
+    if(pfBuySyms.has(sym)) pfStatus='<span class="b b-bull">BUY PF</span>';
+    else if(pfSellSyms.has(sym)) pfStatus='<span class="b b-bear">SELL PF</span>';
+    else if(top25BuySyms.has(sym)) pfStatus='<span class="b b-teal">Top50 BUY</span>';
+    else if(top25SellSyms.has(sym)) pfStatus='<span class="b b-amb">Top50 SELL</span>';
+    movers.push({sym,sector:info.sector,prevClose,latestClose,todayPct,avgRet,consistency,daysAbove,lookback:dailyRets.length,sigObj,smiNow,pfStatus,absPct});
+  });
+
+  // Sort by absPct desc
+  movers.sort((a,b)=>b.absPct-a.absPct);
+  const top=movers.slice(0,50);
+
+  if(!top.length){
+    tb.innerHTML=`<tr><td colspan="12" class="empty">No stocks with avg ≥${minPct}% daily move in last ${lookback} days</td></tr>`;return;
+  }
+  tb.innerHTML=top.map((m,i)=>{
+    const isBull=m.avgRet>0;
+    const retCls=isBull?'c-bull':'c-bear';
+    const todayCls=m.todayPct>=0?'c-bull':'c-bear';
+    const smiDisp=m.smiNow!==null?`<span class="${m.smiNow>20?'c-bull':m.smiNow<-20?'c-bear':'c-amb'}">${m.smiNow}</span>`:'—';
+    const sigDisp=m.sigObj?sigBadge(m.sigObj.signal):'<span class="c-dim">None</span>';
+    const consBadge=m.consistency>=80?'<span class="b b-bull">'+m.consistency+'%</span>':m.consistency>=60?'<span class="b b-amb">'+m.consistency+'%</span>':'<span class="b b-dim">'+m.consistency+'%</span>';
+    return`<tr>
+      <td class="c-dim">${i+1}</td>
+      <td><strong>${m.sym}</strong></td>
+      <td style="font-size:8px;max-width:80px;overflow:hidden;text-overflow:ellipsis">${m.sector}</td>
+      <td class="c-dim">₹${m.prevClose.toFixed(2)}</td>
+      <td>₹${m.latestClose.toFixed(2)}</td>
+      <td class="${todayCls}">${m.todayPct>=0?'+':''}${m.todayPct.toFixed(2)}%</td>
+      <td class="${retCls}"><strong>${m.avgRet>=0?'+':''}${m.avgRet.toFixed(2)}%</strong></td>
+      <td>${consBadge}</td>
+      <td class="${retCls}">${m.daysAbove}/${m.lookback}</td>
+      <td>${sigDisp}</td>
+      <td>${smiDisp}</td>
+      <td>${m.pfStatus}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportDailyMoversCSV() {
+  const lookback=parseInt((document.getElementById('dmLookback')||{value:'5'}).value)||5;
+  const minPct=parseFloat((document.getElementById('dmMinPct')||{value:'2'}).value)||2;
+  const tb=document.getElementById('dmBody');
+  if(!tb||!Object.keys(allStockData).length){toast('No data to export','err');return}
+  // Re-collect data for CSV (reuse logic above but simplified)
+  const rows=['Symbol,Sector,PrevClose,LatestClose,TodayPct,AvgPctPerDay,Consistency,Signal,SMI,InPortfolio'];
+  document.querySelectorAll('#dmBody tr').forEach((tr,i)=>{
+    const cells=[...tr.querySelectorAll('td')];
+    if(cells.length<11)return;
+    rows.push([
+      cells[1].textContent.trim(),
+      cells[2].textContent.trim(),
+      cells[3].textContent.replace('₹','').trim(),
+      cells[4].textContent.replace('₹','').trim(),
+      cells[5].textContent.trim(),
+      cells[6].textContent.trim(),
+      cells[7].textContent.trim(),
+      cells[9].textContent.trim(),
+      cells[10].textContent.trim(),
+      cells[11].textContent.trim()
+    ].join(','));
+  });
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`nandi_daily_movers_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  toast('Daily movers CSV exported','ok');
 }
 
 
